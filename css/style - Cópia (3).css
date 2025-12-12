@@ -1,0 +1,490 @@
+/* ============================================================
+   CSS COMPLETO OTIMIZADO — Versão Final
+   Melhoria da visibilidade dos botões do Gamepad.
+   Mantém classes/IDs existentes e correção de z-index.
+   ============================================================ */
+
+/* --------------------------
+   Variáveis / Tema (OPACIDADE AJUSTADA)
+   -------------------------- */
+:root{
+  /* Cores de Fundo (Background) */
+  --bg-1: #05070a;
+  --bg-2: #0b1220;
+  
+  /* Cores de Glassmorphism (Vidro) - Opacidade AUMENTADA */
+  --glass-bg: rgba(255,255,255,0.06);
+  --glass-stroke: rgba(255,255,255,0.12);
+  --card-bg: rgba(255,255,255,0.08); /* AUMENTADO de 0.04 para 0.08 */
+  --border-soft: rgba(255,255,255,0.15); /* AUMENTADO de 0.1 para 0.15 */
+  
+  /* Cores de Destaque (Accent) */
+  --accent: #00eaff;
+  --accent2: #7a00ff;
+  --accent-soft: rgba(0,234,255,0.14);
+  
+  /* Cores de Texto */
+  --text-light: #e8f7ff;
+  --muted: #9fb0c6;
+  
+  /* Efeitos */
+  --blur: blur(18px);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.55);
+  
+  /* Segurança (iOS/Android) */
+  --safe-area: env(safe-area-inset-bottom, 0px);
+}
+
+/* --------------------------
+   Base & Layout da página
+   -------------------------- */
+* { 
+  box-sizing: border-box; 
+  -webkit-font-smoothing: antialiased; 
+  -moz-osx-font-smoothing: grayscale; 
+  &:not(input, button, select, textarea) {
+    margin: 0;
+    padding: 0;
+  }
+}
+html,body{
+  height:100%;
+  background: radial-gradient(circle at 10% 10%, rgba(10,18,28,0.6), var(--bg-1));
+  color:var(--text-light);
+  font-family: "Inter", "Segoe UI", Roboto, system-ui, -apple-system, "Helvetica Neue", Arial;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: var(--safe-area);
+  overflow-x: hidden; 
+}
+
+/* Canvas principal responsivo e adaptável */
+#display {
+  display: block;
+  width: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  aspect-ratio: 16 / 9; 
+  margin: 0 auto;
+  background: #000;
+  image-rendering: pixelated;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 
+    0 8px 45px rgba(0,0,0,0.85),
+    0 0 30px var(--accent-soft);
+  position: relative;
+  z-index: 1;
+  transition: all .3s ease;
+}
+
+/* Ajustes de Responsividade */
+@media (max-width: 700px) {
+  #display {
+    width: 96vw; 
+    aspect-ratio: 4 / 3;
+    max-height: 80vh; 
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #display {
+    width: 90vw;
+    aspect-ratio: 16 / 9;
+  }
+}
+@media (min-width: 1600px) {
+  #display {
+    max-width: 1400px;
+    max-height: 90vh;
+  }
+}
+
+
+/* --------------------------
+   System log (top-right toasts)
+   -------------------------- */
+#system-log{
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width:320px;
+  max-height:160px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 12000;
+}
+#system-log p.log-message{
+  margin:8px 0;
+  padding:8px 12px;
+  border-radius:8px;
+  font-weight:600;
+  font-size:13px;
+  color:#fff;
+  opacity:0;
+  transform: translateY(-6px);
+  transition: opacity .3s ease, transform .3s ease; 
+  pointer-events: auto;
+  background-color: rgba(11, 18, 32, 0.85); 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+#system-log p.log-message.show{ opacity:1; transform: translateY(0); }
+
+/* --------------------------
+   Settings button (top-right)
+   -------------------------- */
+#settingsButton{
+  position:absolute;
+  top:18px;
+  right:18px;
+  width:58px;
+  height:58px;
+  border-radius:14px;
+  background: var(--glass-bg); 
+  border:1px solid var(--glass-stroke); 
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow: var(--shadow-lg); 
+  backdrop-filter: var(--blur);
+  z-index: 10030;
+  cursor:pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+#settingsButton:hover{ 
+  transform: scale(1.08) rotate(2deg); 
+  box-shadow: 0 10px 34px rgba(0,0,0,0.65), 0 0 18px var(--accent-soft); 
+}
+#settingsButton img{ 
+  display:block; 
+  width:30px; 
+  height:auto; 
+  filter: drop-shadow(0 0 2px rgba(0,234,255,0.5));
+}
+
+/* --------------------------
+   🎮 VPad: Gamepad Virtual
+   -------------------------- */
+  #virtualGamepad {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: calc(10px + var(--safe-area));
+    padding-top: 10px; 
+    user-select: none;
+    /* Fundo reforçado, gradiente ajustado */
+    background: linear-gradient(0deg, var(--bg-1) 0%, rgba(11, 18, 32, 0.8) 70%, transparent 100%);
+    backdrop-filter: blur(0); /* REMOVIDO BLUR DA BASE */
+    z-index: 10010; 
+  }
+
+  /* 🧩 Botões Superiores (Shoulders) */
+  .shoulders {
+    display: flex;
+    justify-content: space-between;
+    width: 95%;
+    max-width: 720px; 
+    margin-bottom: 15px;
+    padding: 0 10px;
+  }
+  .left-shoulder, .right-shoulder {
+    display: flex;
+    flex-direction: column;
+    gap: 6px; 
+  }
+  .btn-shoulder {
+    width: 70px; 
+    height: 30px; 
+    border-radius: 8px;
+    background: var(--bg-2); /* USA BG-2 (fundo mais escuro) */
+    color: var(--text-light);
+    border: 1px solid var(--border-soft);
+    font-size: 0.9em;
+    transition: background 0.15s ease, transform 0.15s ease;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  }
+  .btn-shoulder:active {
+      background: var(--accent);
+      transform: scale(0.98);
+      box-shadow: 0 0 8px var(--accent-soft);
+      border-color: var(--accent);
+  }
+
+  /* 🎯 Corpo principal */
+  .main-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 95%;
+    max-width: 750px;
+    padding: 0 10px;
+  }
+
+  /* 🎮 Estilo Comum para botões redondos (Borda REFORÇADA) */
+  .dpad button, .actions button, .center .analogs button {
+      background: var(--card-bg);
+      border: 2px solid var(--border-soft); /* Borda mais grossa */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+  }
+  .dpad button:active, .center .analogs button:active {
+      background: var(--accent); 
+      transform: scale(0.95);
+      box-shadow: 0 0 8px var(--accent-soft);
+      border-color: var(--accent);
+  }
+  .dpad img, .actions img {
+      filter: drop-shadow(0 0 4px rgba(0,234,255,0.3)); /* Brilho neon sutil */
+  }
+
+
+  /* 🎮 D-Pad */
+  .dpad {
+    display: grid;
+    grid-template-areas:
+      ". up ."
+      "left . right"
+      ". down .";
+    gap: 6px;
+  }
+  .dpad button {
+    width: 60px; 
+    height: 60px;
+    border-radius: 50%;
+  }
+  .dpad #up { grid-area: up; }
+  .dpad #left { grid-area: left; }
+  .dpad #right { grid-area: right; }
+  .dpad #down { grid-area: down; }
+  .dpad img {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* 🔘 Centro */
+  .center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px; 
+  }
+
+  /* Select/Start lado a lado */
+  .system-buttons {
+      display: flex;
+      gap: 24px; 
+      margin-bottom: 5px; 
+  }
+
+  .center .btn-system {
+    width: 60px; 
+    height: 28px;
+    border-radius: 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-soft);
+    transition: all 0.15s ease;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-light);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  }
+  .center .btn-system:active {
+      background: var(--accent2);
+      transform: scale(0.95);
+      box-shadow: 0 0 8px rgba(122, 0, 255, 0.6);
+      border-color: var(--accent2);
+  }
+  .center .analogs {
+    display: flex;
+    gap: 24px;
+  }
+  .center .analogs button {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 0.8em;
+  }
+
+  /* 🔵 Ações */
+  .actions {
+    display: grid;
+    grid-template-areas:
+      ". triangle ."
+      "square . circle"
+      ". cross .";
+    gap: 6px;
+  }
+  .actions button {
+    width: 60px; 
+    height: 60px;
+    border-radius: 50%;
+  }
+  .actions #triangle { grid-area: triangle; }
+  .actions #circle { grid-area: circle; }
+  .actions #cross { grid-area: cross; }
+  .actions #square { grid-area: square; }
+  .actions img {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* Cores fiéis do PS1 para o feedback de clique dos botões de Ação */
+  .actions button:active {
+      box-shadow: none; 
+      border-color: transparent !important; 
+      transform: scale(0.95);
+  }
+
+  #triangle:active { background-color: #0000FF !important; }
+  #circle:active { background-color: #FF0000 !important; }
+  #cross:active { background-color: #008000 !important; }
+  #square:active { background-color: #FF00FF !important; }
+
+  /* 📱 Mobile: adapta tamanhos */
+  @media (max-width: 768px) {
+    .btn-shoulder { width: 50px; height: 25px; font-size: 0.75em; border-radius: 6px;}
+    .shoulders { margin-bottom: 10px; }
+    .dpad button, .actions button { width: 48px; height: 48px; }
+    .center .analogs button { width: 38px; height: 38px; }
+    .center .btn-system { width: 45px; height: 22px; font-size: 11px; }
+    .center { gap: 10px; margin-top: 10px; }
+    .dpad img { width: 24px; height: 24px; }
+    .actions img { width: 28px; height: 28px; }
+  }
+
+  /* Adiciona suporte para 'safe-area' (notch) em dispositivos iOS */
+  @supports(padding: max(0px)) {
+    :root {
+      --safe-area: env(safe-area-inset-bottom);
+    }
+  }
+
+
+/* --------------------------
+   MODAL (BOOTSTRAP) — FORÇA COMPATIBILIDADE E Z-INDEX
+   -------------------------- */
+.modal {
+  z-index: 10150 !important;
+}
+
+.modal-backdrop {
+  z-index: 10130 !important;
+  background-color: rgba(0,0,0,0.7) !important; 
+}
+
+.modal-dialog {
+  max-width: 720px;
+  margin: 1.75rem auto;
+}
+.modal.fade .modal-dialog {
+  transform: translateY(12px); 
+  transition: transform .35s cubic-bezier(.2,.9,.2,1), opacity .28s ease;
+}
+.modal.show .modal-dialog { transform: translateY(0); }
+
+.modal-content{
+  background: linear-gradient(180deg, rgba(18,22,30,0.92), rgba(12,14,18,0.98));
+  border-radius: 16px;
+  border: 1px solid var(--glass-stroke);
+  color: var(--text-light);
+  backdrop-filter: blur(25px) saturate(150%);
+  box-shadow: 0 20px 70px rgba(0,0,0,0.8), 0 0 40px var(--accent-soft);
+}
+
+.modal-content * { position: relative; z-index: 10160; }
+
+/* Botões do modal */
+.modal-btn, #quality, #fullscreenBtn {
+  display:block;
+  width:100%;
+  text-align:center;
+  margin:10px 0;
+  padding:14px 16px; 
+  border-radius:12px;
+  background: linear-gradient(135deg, var(--card-bg), rgba(255,255,255,0.06));
+  border:1px solid var(--border-soft);
+  color:var(--text-light);
+  font-weight:700;
+  cursor:pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.modal-btn:hover, #quality:hover, #fullscreenBtn:hover{
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 24px var(--accent-soft);
+}
+
+/* style para custom-file-upload (upload de BIOS) */
+.custom-file-upload{
+  display:inline-block;
+  padding:12px 18px;
+  border-radius:10px;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;
+  cursor:pointer;
+  font-weight:700;
+  border: none;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  transition: all .15s ease;
+}
+.custom-file-upload:hover{ 
+  opacity:1; 
+  transform: translateY(-2px); 
+  box-shadow: 0 10px 35px rgba(0,0,0,0.6), 0 0 15px var(--accent-soft);
+}
+
+/* biosNotification area */
+#biosNotification{
+  margin-top:8px;
+  color:var(--muted);
+  font-size:13px;
+}
+
+/* --------------------------
+   Notificações BIOS / misc
+   -------------------------- */
+.bios-notification{ color:var(--muted); font-size:13px; margin-top:6px; }
+
+/* --------------------------
+   Animações e helpers
+   -------------------------- */
+@keyframes floaty{
+  0%, 100%{ transform: translateY(0px); }
+  50%{ transform: translateY(-6px); }
+}
+.pulse-accent{ animation: floaty 4s ease-in-out infinite; }
+
+/* --------------------------
+   Responsivo
+   -------------------------- */
+@media (min-width: 901px) and (max-width: 1400px){
+  .shoulders{ max-width: 700px; }
+  .main-body{ max-width: 750px; }
+  .dpad button, .actions button{ width: 62px; height: 62px; }
+}
+
+@media (max-width: 576px){
+  #githubCornerLink span{ display:none; }
+  .shoulders{ padding: 0 8px; }
+  .main-body{ padding: 0 4px; gap: 4px; }
+  .dpad, .actions{ gap: 4px; }
+  .dpad button, .actions button { width: 44px; height: 44px; }
+}
+
+/* --------------------------
+   Correções finas para modal-open
+   -------------------------- */
+body.modal-open #virtualGamepad{
+  pointer-events: none;
+  filter: blur(2px) brightness(.6); 
+  transition: all .2s ease;
+}
+

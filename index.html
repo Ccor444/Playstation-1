@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charSet="utf-8"/>
+<meta name="viewport" content="width=device-width"/>
+  <meta charSet="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Emulador de PlayStation 1 (PS1) Online | Jogue Clássicos PSX no Navegador</title>
+
+<meta name="description" content="Jogue seus clássicos favoritos do PlayStation 1 (PSX) diretamente no seu navegador! Emulador PS1 online, compatível com jogos, BIOS e arquivos de sistema. Rápido, Gratuito e em HTML5/WebGPU."/>
+<meta name="keywords" content="emulador ps1, emulador de playstation 1, psx online, jogar ps1 no navegador, emulador html5, psx web, clássicos ps1, playstation emulator"/>
+<meta name="author" content="Ccor444"/>
+
+<meta property="og:title" content="Emulador de PlayStation 1 (PS1) Online"/>
+<meta property="og:description" content="Jogue seus clássicos favoritos do PlayStation 1 (PSX) diretamente no seu navegador! Emulador PS1 online, compatível com jogos, BIOS e arquivos de sistema."/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://seusite.com/"/> <meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Emulador de PlayStation 1 (PS1) Online"/>
+<meta name="twitter:description" content="Jogue seus clássicos favoritos do PlayStation 1 (PSX) diretamente no seu navegador!"/>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="css/style.css?v=101">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+/>
+<meta name="theme-color" content="#000000">
+
+<style>/* ================================
+   📢 LOG CAST — Estilo AetherSX2
+   ================================ */
+
+#system-log {
+    position: fixed;
+    top: 20px;          /* 🔥 Agora no canto superior */
+    left: 20px;         /* 🔥 Lado esquerdo */
+    width: 320px;
+    max-height: 300px;
+    display: flex;
+    flex-direction: column; /* Mensagens aparecem para baixo */
+    pointer-events: none;
+    z-index: 9999;
+}
+
+#system-log p.log-message {
+    padding: 10px 14px;
+    margin: 6px 0;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+
+    /* 🌫️ Efeito Vidro (AetherSX2) */
+    background: rgba(30, 30, 30, 0.55);
+    backdrop-filter: blur(10px);
+    color: #fff;
+
+    opacity: 0;
+    transform: translateX(-20px);
+    transition:
+        opacity 0.35s ease,
+        transform 0.35s ease;
+
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.12);
+    pointer-events: none;
+}
+
+/* 🎨 Tipos de mensagem */
+.log-message.success  { border-left: 5px solid #4CAF50; }
+.log-message.error    { border-left: 5px solid #F44336; }
+.log-message.warning  { border-left: 5px solid #FFC107; }
+.log-message.info     { border-left: 5px solid #2196F3; }
+.log-message.loading  { border-left: 5px solid #9E9E9E; }
+
+/* Animação quando aparecer */
+.log-message.visible {
+    opacity: 1 !important;
+    transform: translateX(0px) !important;
+}
+</style>
+
+
+</head>
+<body onload="init();">
+<div id="system-log">
+        </div>
+  <canvas id="display"></canvas>
+
+  <button id="settingsButton" type="button">
+    <img src="images/ic_controller_m1_button.png" alt="Configurações" width="30">
+  </button>
+  
+  <div id="virtualGamepad">
+  
+    <div class="shoulders">
+      <div class="left-shoulder">
+        <button id="l2" class="btn-shoulder">L2</button>
+        <button id="l1" class="btn-shoulder">L1</button>
+      </div>
+      <div class="right-shoulder">
+        <button id="r1" class="btn-shoulder">R1</button>
+        <button id="r2" class="btn-shoulder">R2</button>
+      </div>
+    </div>
+
+    <div class="main-body">
+      <div class="dpad">
+        <button id="up"><img src="images/ic_controller_up_button.png"></button>
+        <button id="left"><img src="images/ic_controller_left_button.png"></button>
+        <button id="right"><img src="images/ic_controller_right_button.png"></button>
+        <button id="down"><img src="images/ic_controller_down_button.png"></button>
+      </div>
+
+      <div class="center">
+        <div class="system-buttons"> 
+          <button id="select" class="btn-system"><i class="fa-solid fa-minus"></i></button>
+          <button id="start" class="btn-system">start</button>
+        </div>
+        <div class="analogs">
+          <button id="l3" class="btn-analog">L3</button>
+          <button id="r3" class="btn-analog">R3</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="triangle"><img src="images/ic_controller_triangle_button.png"></button>
+        <button id="circle"><img src="images/ic_controller_circle_button.png"></button>
+        <button id="cross"><img src="images/ic_controller_cross_button.png"></button>
+        <button id="square"><img src="images/ic_controller_square_button.png"></button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="modal fade" id="settingsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-3">
+      <h5>Selecionar BIOS / Game / Arquivo do Sistema</h5>
+      
+      <div id="file">
+        <label for="file-upload" class="custom-file-upload modal-btn">
+          <i class="fas fa-file-upload"></i> Carregar Arquivo
+        </label>
+        <input id="file-upload" type="file" style="display:none;" />
+
+      </div>
+<button id="quality". class="modal-btn" >Qualidade: Padrão</button>
+      <button id="fullscreenBtn" class="modal-btn">
+        <i class="fas fa-expand"></i> Tela Cheia
+      </button>
+<button id="toggleGamepadBtn" class="modal-btn">
+  🕹️ Gamepad Virtual: Ativado
+</button>
+
+    <div id="biosNotification"></div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gpu.js/2.12.0/gpu.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/eruda@3.0.0/eruda.min.js"></script>
+
+  
+          
+  <script src="js/module/biosinject.js"></script>
+<script type="text/javascript" src="base64.js"></script>
+	<script type="text/javascript" src="trace.js"></script>
+	<script type="text/javascript" src="utils.js"></script>
+
+	<script type="text/javascript" src="psx-core/core.js"></script>
+	<script type="text/javascript" src="psx-core/config.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.x/dist/pixi.min.js"></script>
+
+	<script type="text/javascript" src="psx-renderers/webGlHQ.js"></script>
+
+	<script type="text/javascript" src="psx-core/memory.js"></script>
+	<script type="text/javascript" src="psx-core/enge.js"></script>
+	<script type="text/javascript" src="psx-core/cdrom.js"></script>
+	<script type="text/javascript" src="psx-core/recompiler.js"></script>
+	<script type="text/javascript" src="psx-core/directMemoryAccess.js"></script>
+	<script type="text/javascript" src="psx-core/geometryTransformEngine.js"></script>
+	<script type="text/javascript" src="psx-core/graphicsProcessingUnit.js"></script>
+	<script type="text/javascript" src="psx-core/macroBlockDecoder.js"></script>
+	<script type="text/javascript" src="psx-core/serialPorts.js"></script>
+	<script type="text/javascript" src="psx-core/soundProcessingUnit.js"></script>
+	<script type="text/javascript" src="psx-core/rootCounters.js"></script>
+	<script type="text/javascript" src="psx-core/gamepad.js"></script>
+
+	<script type="text/javascript" src="index.js"></script>
+<script src="dB.js"></script>
+
+	<script  src="psx-core/virtualpad.js"></script>
+  
+<script>
+  const settingsButton = document.getElementById('settingsButton');
+  const settingsModalEl = document.getElementById('settingsModal');
+
+  if (settingsButton && settingsModalEl && window.bootstrap) {
+    const modal = new bootstrap.Modal(settingsModalEl);
+    settingsButton.addEventListener('click', () => modal.show());
+  } else if (settingsButton) {
+    settingsButton.addEventListener('click', () => alert('Modal não disponível (Bootstrap ausente)'));
+  }
+</script>
+
+<script>
+(() => {
+  const btn = document.getElementById('fullscreenBtn');
+  if (!btn) return;
+
+  const isFullscreen = () => !!(
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.msFullscreenElement
+  );
+
+  const enterFullscreen = () => {
+    const elem = document.documentElement; // Toda a página
+    if (elem.requestFullscreen) elem.requestFullscreen();
+    else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+    else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
+  };
+
+  const exitFullscreen = () => {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.msExitFullscreen) document.msExitFullscreen();
+  };
+
+  const toggleFullscreen = () => {
+    if (isFullscreen()) exitFullscreen();
+    else enterFullscreen();
+  };
+
+  const updateButton = () => {
+    btn.textContent = isFullscreen() ? 'Sair do Fullscreen' : 'Entrar em Fullscreen';
+  };
+
+  btn.addEventListener('click', toggleFullscreen);
+  document.addEventListener('fullscreenchange', updateButton);
+  document.addEventListener('webkitfullscreenchange', updateButton);
+  document.addEventListener('msfullscreenchange', updateButton);
+
+  // Força canvas ocupar toda tela
+  const canvas = document.getElementById('display');
+  const resizeCanvas = () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  };
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas(); // inicializa
+
+  updateButton();
+})();
+</script>
+
+<script>
+(() => {
+  const gamepadBtn = document.getElementById('toggleGamepadBtn');
+  const virtualGamepad = document.getElementById('virtualGamepad');
+
+  if (!gamepadBtn || !virtualGamepad) return;
+
+  // Estado inicial carregado do localStorage (ou true se não existir)
+  let gamepadActive = localStorage.getItem('gamepadActive');
+  gamepadActive = gamepadActive === null ? true : gamepadActive === 'true';
+
+  const updateButtonText = () => {
+    gamepadBtn.textContent = `🕹️ Gamepad Virtual: ${gamepadActive ? 'Ativado' : 'Desativado'}`;
+  };
+
+  // Aplica o estado inicial ao gamepad
+  virtualGamepad.style.display = gamepadActive ? 'flex' : 'none';
+  updateButtonText();
+
+  // Toggle ao clicar
+  gamepadBtn.addEventListener('click', () => {
+    gamepadActive = !gamepadActive;
+    virtualGamepad.style.display = gamepadActive ? 'flex' : 'none';
+    updateButtonText();
+    localStorage.setItem('gamepadActive', gamepadActive); // salva preferência
+  });
+})();
+</script>
+<script>
+        if (window.init) {
+            window.init();
+        }
+    </script>
+
+
+</body>
+</html>
