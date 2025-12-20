@@ -290,7 +290,144 @@
             window.init();
         }
     </script>
+<script>
+(function() {
+    // 1. Criar o HTML e CSS do Painel (Estilo Game HUD)
+    function createDebugPanel() {
+        if (document.getElementById('gpu-debug-panel')) return;
 
+        const panel = document.createElement('div');
+        panel.id = 'gpu-debug-panel';
+        
+        // Estrutura em linha única para parecer status nativo do motor gráfico
+        panel.innerHTML = `
+            FPS: <span id="debug-fps" style="color:#fff">0</span> | 
+            RENDER: <span id="debug-rfps" style="color:#fff">0</span> | 
+            DRAWS: <span id="debug-draws" style="color:#fff">0</span> | 
+            VERTS: <span id="debug-verts" style="color:#fff">0</span> |
+            <span id="debug-status" style="color:#00ff95">[STABLE]</span>
+        `;
+
+        // Estilização para máxima legibilidade sobre o jogo
+        Object.assign(panel.style, {
+            position: 'fixed',
+            top: '5px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#00d4ff', // Azul Ciano estilo Aetrex X2
+            fontFamily: '"Lucida Console", Monaco, monospace',
+            fontWeight: 'bold',
+            fontSize: '11px',
+            letterSpacing: '1px',
+            pointerEvents: 'none',
+            zIndex: '10000',
+            textAlign: 'center',
+            // Contorno (outline) preto para as letras não sumirem em fundos claros
+            textShadow: `
+                -1px -1px 0 #000,  
+                 1px -1px 0 #000,
+                -1px  1px 0 #000,
+                 1px  1px 0 #000,
+                 0px  2px 4px rgba(0,0,0,0.8)
+            `,
+            whiteSpace: 'nowrap'
+        });
+
+        document.body.appendChild(panel);
+    }
+
+    // 2. Injeção da lógica quando o WebGL estiver pronto
+    const injectInterval = setInterval(() => {
+        if (typeof WebGLRenderer !== 'undefined' && document.body) {
+            clearInterval(injectInterval);
+            createDebugPanel();
+            initGpuDebugger();
+        }
+    }, 100);
+
+    // 3. Lógica de Monitoramento e Cálculo de Performance
+    function initGpuDebugger() {
+        console.log("Aetrex Debugger: Ativo");
+
+        // Inicializa os contadores de estatísticas
+        WebGLRenderer.prototype._debugStats = {
+            lastTime: performance.now(),
+            drawCalls: 0,
+            vertices: 0,
+            vramUploads: 0,
+            frameAcc: 0 // Acumulador para o FPS real
+        };
+
+        // Hook: Contagem de Draw Calls e Vértices
+        const originalFlush = WebGLRenderer.prototype.flushVertexBuffer;
+        WebGLRenderer.prototype.flushVertexBuffer = function(clip) {
+            if (this.vertexBuffer && this.vertexBuffer.index > 0) {
+                this._debugStats.drawCalls++;
+                this._debugStats.vertices += (this.vertexBuffer.index / 4);
+            }
+            return originalFlush.apply(this, arguments);
+        };
+
+        // Hook: Contagem de Uploads para a VRAM (texturas)
+        const originalStore = WebGLRenderer.prototype.storeImageInTexture;
+        WebGLRenderer.prototype.storeImageInTexture = function(img) {
+            this._debugStats.vramUploads++;
+            return originalStore.apply(this, arguments);
+        };
+
+        // Hook: Ciclo de Renderização (V-Blank)
+        const originalVBlank = WebGLRenderer.prototype.onVBlankBegin;
+        WebGLRenderer.prototype.onVBlankBegin = function() {
+            originalVBlank.apply(this, arguments);
+            
+            const stats = this._debugStats;
+            stats.frameAcc++; // Soma cada frame processado efetivamente
+            
+            const now = performance.now();
+            const elapsed = now - stats.lastTime;
+
+            // Atualiza os dados no HUD a cada 1 segundo (1000ms)
+            if (elapsed >= 1000) {
+                const elFps = document.getElementById('debug-fps');
+                const elRFps = document.getElementById('debug-rfps');
+                const elDraws = document.getElementById('debug-draws');
+                const elVerts = document.getElementById('debug-verts');
+                const elStatus = document.getElementById('debug-status');
+
+                // Cálculo de FPS Real (Frames acumulados / tempo decorrido)
+                const realFps = Math.round((stats.frameAcc * 1000) / elapsed);
+
+                if (elFps) {
+                    elFps.innerText = realFps;
+                    elRFps.innerText = this.fpsRenderCounter || 0;
+                    elDraws.innerText = stats.drawCalls;
+                    elVerts.innerText = Math.floor(stats.vertices);
+
+                    // Lógica de Status Dinâmico baseada em Performance
+                    if (stats.vramUploads > 45) {
+                        elStatus.innerText = "[VRAM_LIMIT]";
+                        elStatus.style.color = "#ff3300"; // Vermelho
+                    } else if (realFps < 25) {
+                        elStatus.innerText = "[SLOWDOWN]";
+                        elStatus.style.color = "#ffcc00"; // Amarelo
+                    } else {
+                        elStatus.innerText = "[STABLE]";
+                        elStatus.style.color = "#00ff95"; // Verde Neon
+                    }
+                }
+
+                // Reseta os acumuladores para o próximo ciclo de 1 segundo
+                stats.drawCalls = 0;
+                stats.vertices = 0;
+                stats.vramUploads = 0;
+                stats.frameAcc = 0;
+                stats.lastTime = now;
+            }
+        };
+    }
+})();
+</script>
+	
 
 </body>
 </html>
