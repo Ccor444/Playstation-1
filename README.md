@@ -1,20 +1,16 @@
+# Playstation 1 HTML5
+🚧 **Aviso Importante**  
+O emulador
+basta abrir o arquivo `index.html` direto no seu computador ou celular que o sistema inicializa normalmente.
 
-​🎮 PlayStation 1 Emulator (Pure JS JIT)
-​Este é um emulador de PlayStation 1 (PSX) desenvolvido inteiramente em tecnologias web, projetado para rodar clássicos diretamente no seu navegador com alta performance e sem necessidade de plugins.
-​🚀 Diferenciais Técnicos
-​Diferente da maioria dos emuladores web que utilizam WebAssembly, este projeto foi construído utilizando:
-​Compilação JIT (Just-In-Time): Tradução dinâmica de instruções MIPS para JavaScript otimizado em tempo real.
-​BIOS Pré-carregada: Experiência "out-of-the-box", sem necessidade de configuração manual do sistema.
-​GPU Rendering: Renderização via Canvas/WebGL para garantir fluidez visual.
-​Pure HTML5/JS: Sem dependências pesadas, garantindo um carregamento extremamente rápido.
-​🛠️ Funcionalidades
-​🕹️ Gamepad Virtual: Controles na tela totalmente responsivos para dispositivos móveis.
-​🖥️ Full Screen: Suporte para modo tela cheia para maior imersão.
-​⚙️ Qualidade Ajustável: Opções para equilibrar performance e fidelidade visual.
-​📁 Local File Loading: Carregue seus próprios arquivos .bin, .iso ou .exe localmente.
-​🕹️ Como Jogar
-​Acesse o link do projeto: ccor444.github.io/Playstation-1/
-​Clique em "Carregar Arquivo".
-​Selecione a ROM do seu jogo de preferência.
-​Divirta-se!
-​ 
+Este projeto visa emular o console PlayStation 1 diretamente no navegador, utilizando tecnologias web modernas.
+
+## 🎮 Sobre o Projeto
+
+O objetivo é proporcionar uma experiência de jogo clássica do PS1 em dispositivos modernos, sem a necessidade de plugins ou instalações adicionais.
+
+## 👨‍💻 Créditos
+
+Este projeto é inspirado no trabalho de [Kootstra Rene](https://github.com/kootstra-rene/enge-js), que desenvolveu o emulador PS1 em JavaScript. Seu esforço e dedicação serviram como base para este projeto.
+
+
