@@ -1,0 +1,44 @@
+{
+  "id": "mortal-kombat",
+  "name": "Mortal Kombat",
+  "icon": "fa-dragon",
+  "themeColor": "#1a0303",
+  "cssVariables": {
+    "--accent":         "#f59e0b",
+    "--accent-soft":    "rgba(245, 158, 11, 0.35)",
+    "--accent-glow":    "rgba(239, 68, 68, 0.6)",
+    "--accent-border":  "rgba(245, 158, 11, 0.95)",
+    "--accent-text":    "#fbbf24",
+    "--menu-gradient-1":"rgba(220, 38, 38, 0.7)",
+    "--menu-gradient-2":"rgba(120, 12, 12, 0.75)",
+    "--xmb-text-glow":  "rgba(239, 68, 68, 0.7)",
+    "--font-display":   "Impact, 'Arial Black', sans-serif",
+    "--watermark-opacity": "0.14",
+    "--watermark-color":   "#dc2626"
+  },
+  "background": {
+    "stops": ["#1a0303", "#3d0707", "#0a0101", "#000000"],
+    "positions": [0, 0.45, 0.8, 1]
+  },
+  "waves": [
+    { "amplitude": 80, "freq": 0.0020, "speed": 0.014, "offset": 0,   "color1": "rgba(239, 68, 68, 0.55)",  "color2": "rgba(120, 12, 12, 0.05)", "heightRatio": 0.52 },
+    { "amplitude": 55, "freq": 0.0028, "speed": 0.020, "offset": 2.2, "color1": "rgba(245, 158, 11, 0.42)", "color2": "rgba(80, 20, 5, 0.02)",    "heightRatio": 0.58 },
+    { "amplitude": 95, "freq": 0.0013, "speed": 0.009, "offset": 4.5, "color1": "rgba(251, 191, 36, 0.38)", "color2": "rgba(40, 5, 5, 0.02)",    "heightRatio": 0.48 }
+  ],
+  "waveSpeedMultiplier": 1.6,
+  "effects": {
+    "watermark": { "enabled": true, "color": "#dc2626" },
+    "glowPulses": {
+      "enabled": true,
+      "count": 6,
+      "color": "rgba(251, 146, 60, 0.18)"
+    },
+    "embers": {
+      "enabled": true,
+      "maxParticles": 90,
+      "hueStart": 10,
+      "hueEnd": 50,
+      "spawnChance": 0.6
+    }
+  }
+}

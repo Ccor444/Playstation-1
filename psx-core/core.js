@@ -10,6 +10,9 @@
 		lastId: 0
 	}
 
+	// Buffer reutilizável para eventos prontos (evita alocação por chamada)
+	const readyEvents = [];
+
 	psx.addEvent = (clocks, cb) => {
 		const event = Object.seal({
 			id: psx.lastId++,
@@ -74,23 +77,25 @@
 	}
 
 	psx.handleEvents = (entry) => {
+		// Reutiliza o mesmo array para evitar alocação
+		readyEvents.length = 0;
 		let eventClock = Number.MAX_SAFE_INTEGER;
 
-		const events = [];
+		// Coleta eventos cujo clock já passou
 		for (let i = 0, l = psx.events.length; i < l; ++i) {
 			const event = psx.events[i];
-
 			if (psx.clock >= event.clock) {
-				events.push(event);
+				readyEvents.push(event);
 			}
 		}
 
-		for (let i = 0, l = events.length; i < l; ++i) {
-			const event = events[i];
-
+		// Dispara os callbacks
+		for (let i = 0, l = readyEvents.length; i < l; ++i) {
+			const event = readyEvents[i];
 			event.cb(event, psx.clock);
 		}
 
+		// Recalcula o próximo clock de evento
 		for (let i = 0, l = psx.events.length; i < l; ++i) {
 			const event = psx.events[i];
 			if (event.clock < eventClock && event.active) {

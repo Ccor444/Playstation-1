@@ -1,0 +1,34 @@
+{
+  "id": "ps3",
+  "name": "PS3 Clássico",
+  "icon": "fa-gamepad",
+  "themeColor": "#000000",
+  "cssVariables": {
+    "--accent":         "#38bdf8",
+    "--accent-soft":    "rgba(56, 189, 248, 0.3)",
+    "--accent-glow":    "rgba(56, 189, 248, 0.4)",
+    "--accent-border":  "rgba(56, 189, 248, 0.8)",
+    "--accent-text":    "#7dd3fc",
+    "--menu-gradient-1":"rgba(56, 189, 248, 0.55)",
+    "--menu-gradient-2":"rgba(3, 105, 161, 0.55)",
+    "--xmb-text-glow":  "rgba(56, 189, 248, 0.5)",
+    "--font-display":   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
+    "--watermark-opacity": "0",
+    "--watermark-color":   "#38bdf8"
+  },
+  "background": {
+    "stops": ["#020d1f", "#082545", "#010612"],
+    "positions": [0, 0.5, 1]
+  },
+  "waves": [
+    { "amplitude": 70, "freq": 0.0018, "speed": 0.012, "offset": 0,   "color1": "rgba(56, 189, 248, 0.35)", "color2": "rgba(3, 105, 161, 0.05)", "heightRatio": 0.52 },
+    { "amplitude": 50, "freq": 0.0025, "speed": 0.018, "offset": 2.2, "color1": "rgba(14, 165, 233, 0.25)", "color2": "rgba(15, 23, 42, 0.01)",  "heightRatio": 0.58 },
+    { "amplitude": 90, "freq": 0.0012, "speed": 0.008, "offset": 4.5, "color1": "rgba(99, 102, 241, 0.3)",  "color2": "rgba(30, 27, 75, 0.02)",  "heightRatio": 0.48 }
+  ],
+  "waveSpeedMultiplier": 1,
+  "effects": {
+    "watermark": { "enabled": false },
+    "glowPulses": { "enabled": false },
+    "embers": { "enabled": false }
+  }
+}

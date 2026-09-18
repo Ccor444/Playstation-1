@@ -2,6 +2,45 @@
 
 	'use strict';
 
+	// ==========================================================================
+	// SUPORTE MOBILE (aditivo — não altera o comportamento padrão/desktop)
+	// ==========================================================================
+	// Quando RecompilerConfig.mobileMode === true:
+	//   1) Blocos são cortados em maxBlockInstructions instruções (evita gerar
+	//      funções JS gigantes via `new Function`, que são caras para compilar
+	//      e manter em JIT móveis com memória/energia limitadas).
+	//   2) A otimização de "trace loop" (fusão de vários blocos em uma única
+	//      função com `for(;;)`) fica desativada — ela reduz overhead de
+	//      dispatch no desktop, mas gera funções maiores e picos de
+	//      recompilação que custam mais em CPUs móveis.
+	// Tudo isso é lido em tempo de execução, então pode ser alternado a
+	// qualquer momento pelo host (ex.: um toggle "Modo mobile" nas opções).
+	const RecompilerConfig = {
+		mobileMode: false,
+		maxBlockInstructions: 48,
+		enableTraceLoop: true,
+	};
+
+	function detectMobileHeuristics() {
+		try {
+			const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+			const isMobileUA = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+			const isTouchOnly = (typeof navigator !== 'undefined') &&
+				((navigator.maxTouchPoints || 0) > 0) && !/Macintosh|Windows NT|X11/i.test(ua);
+			const lowMemory = (typeof navigator !== 'undefined') &&
+				navigator.deviceMemory && navigator.deviceMemory <= 4;
+			return isMobileUA || (isTouchOnly && lowMemory);
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// Auto-detecção inicial; o host pode sobrescrever a qualquer momento via
+	// scope.RecompilerConfig.mobileMode = true/false antes ou durante a execução.
+	RecompilerConfig.mobileMode = detectMobileHeuristics();
+	if (RecompilerConfig.mobileMode) RecompilerConfig.enableTraceLoop = false;
+	scope.RecompilerConfig = RecompilerConfig;
+
 	function createFunction(pc, code, jumps) {
 		const lines = [
 			"  return function $" + hex(pc).toUpperCase() + "(psx) { ++calls;\n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
@@ -72,14 +111,24 @@
 
 		'compile08': function (rec, opc) {
 			const mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+			const immediate = (opc << 16) >> 16;
 			if (ConstantFolding.isConst(rec.rs)) {
-				const immediate = (opc << 16) >> 16;
-				const value = ConstantFolding.getConst(rec.rs) + immediate;
+				const value = (ConstantFolding.getConst(rec.rs) | 0) + immediate;
+				if (value > 0x7fffffff || value < -0x80000000) {
+					const code = rec.setReg(mips, 0, `psx.clock += ${rec.cycles + 1}; target = cpuException(12 << 2, 0x${hex(rec.pc)}); return target`);
+					return code;
+				}
 				const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
 				ConstantFolding.setConst(rec.rt, value);
 				return code;
 			}
-			const code = rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
+			const a = rec.getRS();
+			const tmp = `_ovr${hex(rec.pc)}`;
+			const code = rec.setReg(mips, 0,
+				`const ${tmp} = (${immediate} + ${a}) | 0;\n` +
+				`if (((${a} ^ ${tmp}) & (${immediate} ^ ${tmp})) < 0) { psx.clock += ${rec.cycles + 1}; target = cpuException(12 << 2, 0x${hex(rec.pc)}); return target; }` +
+				(rec.rt ? `\n${rec.reg(rec.rt)} = ${tmp}` : '')
+			);
 			ConstantFolding.resetConst(rec.rt);
 			return code;
 		},
@@ -269,6 +318,11 @@
 			return code;
 		},
 
+		'compile2F': function (rec, opc) {
+			// cache    op, $offset(rs) — sem emulação de I-cache real, tratada como no-op seguro
+			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': cache   $' + (((opc >>> 16) & 0x1f)) + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+		},
+
 		'compile32': function (rec, opc) {
 			const mips = 'lwc2    r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
 			const code = rec.setReg(mips, 0, 'gte.set(' + rec.rt + ', memRead32(' + rec.getOF(opc) + '))');
@@ -356,11 +410,11 @@
 		},
 
 		'compile4D': function (rec, opc) {
-			return '//break';
-			// rec.stop = true;
-			// rec.break = true;
-			// return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': break\n' +
-			// 	'target = cpuException(9 << 2, 0x' + hex(rec.pc) + ');';
+			rec.stop = true;
+			rec.break = true;
+			const mips = 'break';
+			const code = rec.setReg(mips, 0, 'target = cpuException(9 << 2, 0x' + hex(rec.pc) + ')');
+			return code;
 		},
 
 		'compile50': function (rec, opc) {
@@ -416,12 +470,22 @@
 		'compile60': function (rec, opc) {
 			const mips = 'add     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
 			if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-				const value = ConstantFolding.getConst(rec.rs) + ConstantFolding.getConst(rec.rt);
+				const value = (ConstantFolding.getConst(rec.rs) | 0) + (ConstantFolding.getConst(rec.rt) | 0);
+				if (value > 0x7fffffff || value < -0x80000000) {
+					const code = rec.setReg(mips, 0, `psx.clock += ${rec.cycles + 1}; target = cpuException(12 << 2, 0x${hex(rec.pc)}); return target`);
+					return code;
+				}
 				const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
 				ConstantFolding.setConst(rec.rd, value);
 				return code;
 			}
-			const code = rec.setReg(mips, rec.rd, rec.getRS() + ' + ' + rec.getRT());
+			const a = rec.getRS(), b = rec.getRT();
+			const tmp = `_ovr${hex(rec.pc)}`;
+			const code = rec.setReg(mips, 0,
+				`const ${tmp} = (${a} + ${b}) | 0;\n` +
+				`if (((${a} ^ ${tmp}) & (${b} ^ ${tmp})) < 0) { psx.clock += ${rec.cycles + 1}; target = cpuException(12 << 2, 0x${hex(rec.pc)}); return target; }` +
+				(rec.rd ? `\n${rec.reg(rec.rd)} = ${tmp}` : '')
+			);
 			ConstantFolding.resetConst(rec.rd);
 			return code;
 		},
@@ -442,12 +506,22 @@
 		'compile62': function (rec, opc) {
 			const mips = 'sub     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
 			if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-				const value = ConstantFolding.getConst(rec.rs) - ConstantFolding.getConst(rec.rt);
+				const value = (ConstantFolding.getConst(rec.rs) | 0) - (ConstantFolding.getConst(rec.rt) | 0);
+				if (value > 0x7fffffff || value < -0x80000000) {
+					const code = rec.setReg(mips, 0, `psx.clock += ${rec.cycles + 1}; target = cpuException(12 << 2, 0x${hex(rec.pc)}); return target`);
+					return code;
+				}
 				const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
 				ConstantFolding.setConst(rec.rd, value);
 				return code;
 			}
-			const code = rec.setReg(mips, rec.rd, rec.getRS() + ' - ' + rec.getRT());
+			const a = rec.getRS(), b = rec.getRT();
+			const tmp = `_ovr${hex(rec.pc)}`;
+			const code = rec.setReg(mips, 0,
+				`const ${tmp} = (${a} - ${b}) | 0;\n` +
+				`if (((${a} ^ ${b}) & (${a} ^ ${tmp})) < 0) { psx.clock += ${rec.cycles + 1}; target = cpuException(12 << 2, 0x${hex(rec.pc)}); return target; }` +
+				(rec.rd ? `\n${rec.reg(rec.rd)} = ${tmp}` : '')
+			);
 			ConstantFolding.resetConst(rec.rd);
 			return code;
 		},
@@ -738,15 +812,29 @@
 
 		const lines = [];
 		ConstantFolding.resetState();
+		let mobileCapped = false;
 
 		// todo: limit the amount of cycles per block
 		while (!state.stop) {
 			compileInstruction(state, lines, false);
 			state.cycles += 1;
 			state.pc += 4;
+
+			// MOBILE: encerra o bloco cedo (fallthrough normal) para não gerar
+			// funções JS enormes em dispositivos com JIT/engine mais fracos.
+			// Só age se ainda não houve stop natural (branch/jump/syscall/etc),
+			// então nunca corta no meio de um delay slot. mobileCapped marca essa
+			// parada como "artificial" para NÃO disparar a compilação do delay
+			// slot logo abaixo, que é exclusiva de branches/jumps reais.
+			if (RecompilerConfig.mobileMode && !state.stop &&
+				state.cycles >= RecompilerConfig.maxBlockInstructions) {
+				lines.push(`target = _${hex(state.pc)};`);
+				state.stop = true;
+				mobileCapped = true;
+			}
 		}
 
-		if (state.stop && (!state.break && !state.syscall && !state.sr)) {
+		if (state.stop && !mobileCapped && (!state.break && !state.syscall && !state.sr)) {
 			compileInstruction(state, lines, true);
 			state.cycles += 1;
 			state.pc += 4;
@@ -836,7 +924,7 @@
 	}
 
 	function lazyCompile() {
-		if (this.loop.length) {
+		if (RecompilerConfig.enableTraceLoop && this.loop.length) {
 			const set = new Set();
 			const prolog = [];
 			const sections = [];
@@ -966,7 +1054,7 @@
 			return 0;
 		},
 		optimise: function (entry) {
-			if ((psx.clock - entry.clock) < 1024) {
+			if (RecompilerConfig.enableTraceLoop && (psx.clock - entry.clock) < 1024) {
 				const loopSize = CodeTrace.detectLoop(entry);
 				if (loopSize) {
 					const startIndex = (this.index - loopSize + TRACE_SIZE) % TRACE_SIZE;

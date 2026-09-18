@@ -1,676 +1,1219 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
-<meta charSet="utf-8"/>
-<meta name="viewport" content="width=device-width"/>
-  <meta charSet="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Emulador de PlayStation 1 (PS1) Online | Jogue Clássicos PSX no Navegador</title>
-
-<meta name="description" content="Jogue seus clássicos favoritos do PlayStation 1 (PSX) diretamente no seu navegador! Emulador PS1 online, compatível com jogos, BIOS e arquivos de sistema. Rápido, Gratuito e em HTML5/WebGPU."/>
-<meta name="keywords" content="emulador ps1, emulador de playstation 1, psx online, jogar ps1 no navegador, emulador html5, psx web, clássicos ps1, playstation emulator"/>
-<meta name="author" content="Ccor444"/>
-
-<meta property="og:title" content="Emulador de PlayStation 1 (PS1) Online"/>
-<meta property="og:description" content="Jogue seus clássicos favoritos do PlayStation 1 (PSX) diretamente no seu navegador! Emulador PS1 online, compatível com jogos, BIOS e arquivos de sistema."/>
-<meta property="og:type" content="website"/>
-<meta property="og:url" content="https://seusite.com/"/> <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="Emulador de PlayStation 1 (PS1) Online"/>
-<meta name="twitter:description" content="Jogue seus clássicos favoritos do PlayStation 1 (PSX) diretamente no seu navegador!"/>
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-<link
-  rel="stylesheet"
-  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-/>
-<link rel="stylesheet" type="text/css" href="css/style.css?v=101">
-<meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  
+  <title>PS3 XMB Emulator Interface</title>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<style>/* ================================
-   📢 LOG CAST — Estilo AetherSX2
-   ================================ */
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      touch-action: none;
+    }
 
-#system-log {
-    position: fixed;
-    top: 20px;          /* 🔥 Agora no canto superior */
-    left: 20px;         /* 🔥 Lado esquerdo */
-    width: 320px;
-    max-height: 300px;
-    display: flex;
-    flex-direction: column; /* Mensagens aparecem para baixo */
-    pointer-events: none;
-    z-index: 9999;
-}
+    html, body {
+      margin: 0; padding: 0;
+      background-color: #000; color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      width: 100vw; height: 100vh;
+      overflow: hidden; overscroll-behavior: none;
+      position: relative;
+    }
 
-#system-log p.log-message {
-    padding: 10px 14px;
-    margin: 6px 0;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
+    :root {
+      --accent:         #38bdf8;
+      --accent-soft:    rgba(56, 189, 248, 0.3);
+      --accent-glow:    rgba(56, 189, 248, 0.4);
+      --accent-border:  rgba(56, 189, 248, 0.8);
+      --accent-text:    #7dd3fc;
+      --menu-gradient-1:rgba(56, 189, 248, 0.55);
+      --menu-gradient-2:rgba(3, 105, 161, 0.55);
+      --xmb-text-glow:  rgba(56, 189, 248, 0.5);
+      --font-display:   -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      --watermark-opacity: 0;
+      --watermark-color: #38bdf8;
+    }
 
-    /* 🌫️ Efeito Vidro (AetherSX2) */
-    background: rgba(30, 30, 30, 0.55);
-    backdrop-filter: blur(10px);
-    color: #fff;
+    /* ============ MARCA D'ÁGUA ============
+       Só aparece quando o XMB está aberto (body.xmb-open) E o tema ativa.
+       Isso garante que nunca sobreponha o jogo em execução. */
+    #theme-watermark {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(70vmin, 560px);
+      height: min(70vmin, 560px);
+      z-index: 11;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.6s ease, visibility 0.6s;
+      color: var(--watermark-color);
+      filter: drop-shadow(0 0 30px var(--watermark-color));
+    }
+    body.xmb-open.theme-has-watermark #theme-watermark {
+      opacity: var(--watermark-opacity);
+      visibility: visible;
+    }
+    #theme-watermark svg { width: 100%; height: 100%; display: block; }
+    #theme-watermark [stroke] { stroke: currentColor; }
 
-    opacity: 0;
-    transform: translateX(-20px);
-    transition:
-        opacity 0.35s ease,
-        transform 0.35s ease;
+    /* ============ FAÍSCAS ============ */
+    #theme-embers {
+      position: absolute;
+      inset: 0;
+      z-index: 11;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.6s ease, visibility 0.6s;
+    }
+    body.xmb-open.theme-has-embers #theme-embers {
+      opacity: 0.9;
+      visibility: visible;
+    }
 
-    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-    border: 1px solid rgba(255,255,255,0.12);
-    pointer-events: none;
-}
+    .canvas-container {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+      background-color: #000;
+    }
+    #display { width: 100%; height: 100%; object-fit: contain; }
 
-/* 🎨 Tipos de mensagem */
-.log-message.success  { border-left: 5px solid #4CAF50; }
-.log-message.error    { border-left: 5px solid #F44336; }
-.log-message.warning  { border-left: 5px solid #FFC107; }
-.log-message.info     { border-left: 5px solid #2196F3; }
-.log-message.loading  { border-left: 5px solid #9E9E9E; }
+    #ps3-wave-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0; visibility: hidden;
+      transition: opacity 0.35s ease, visibility 0.35s;
+    }
+    #ps3-wave-canvas.active { opacity: 1; visibility: visible; }
 
-/* Animação quando aparecer */
-.log-message.visible {
-    opacity: 1 !important;
-    transform: translateX(0px) !important;
-}
-</style>
+    .xmb-overlay {
+      visibility: hidden; opacity: 0;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 50;
+      display: flex; flex-direction: column;
+      pointer-events: none;
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s;
+    }
+    .xmb-overlay.active { visibility: visible; opacity: 1; pointer-events: auto; }
 
+    .xmb-header {
+      position: absolute;
+      top: 25px; right: 35px;
+      text-align: right;
+      z-index: 60;
+      color: rgba(255, 255, 255, 0.95);
+      text-shadow: 0 0 8px var(--xmb-text-glow);
+    }
+    .xmb-clock {
+      font-size: 26px; font-weight: 300; letter-spacing: 1px;
+      font-family: var(--font-display);
+    }
+    .xmb-date { font-size: 11px; color: rgba(255, 255, 255, 0.65); margin-top: 2px; }
+
+    .xmb-container {
+      position: relative;
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; justify-content: center;
+      z-index: 55;
+    }
+
+    .xmb-horizontal-bar {
+      display: flex; align-items: center;
+      position: absolute;
+      top: 22%; left: 18%;
+      gap: 75px;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .xmb-nav-item {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      opacity: 0.35; transform: scale(0.85);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+    }
+    .xmb-nav-item.active {
+      opacity: 1; transform: scale(1.25);
+      filter: drop-shadow(0 0 12px var(--accent-glow));
+    }
+    .xmb-nav-item .icon { 
+      font-size: 28px; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      transition: color 0.3s ease;
+    }
+    .xmb-nav-item.active .icon {
+      color: var(--accent-text);
+      text-shadow: 0 0 10px var(--accent-glow);
+    }
+    .xmb-nav-item .label {
+      font-size: 10px; letter-spacing: 2px;
+      text-transform: uppercase; font-weight: 700;
+      white-space: nowrap;
+      font-family: var(--font-display);
+    }
+
+    .xmb-vertical-list {
+      position: absolute;
+      top: 38%; left: 18%;
+      display: flex; flex-direction: column; gap: 14px;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .xmb-sub-item {
+      display: flex; align-items: center; gap: 16px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      opacity: 0.35; transform: scale(0.92);
+      transform-origin: left center;
+      transition: all 0.25s ease;
+      cursor: pointer;
+      min-width: 260px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(4px);
+    }
+    .xmb-sub-item.active {
+      opacity: 1; transform: scale(1.08);
+      background: linear-gradient(90deg, var(--accent-soft) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border-left: 4px solid var(--accent);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px var(--accent-glow);
+    }
+    .xmb-sub-item .icon {
+      font-size: 18px; width: 24px;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .xmb-sub-item.active .icon {
+      color: var(--accent-text);
+      text-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    /* ============ ITENS DA LISTA DE TEMAS ============ */
+    .theme-item .ui-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .theme-item .theme-name { flex: 1; }
+    .theme-item .theme-check {
+      display: none;
+      color: var(--accent-text);
+      text-shadow: 0 0 10px var(--accent-glow);
+      font-size: 14px;
+    }
+    .theme-item.is-active-theme .theme-check { display: inline-block; }
+    .theme-item.is-active-theme {
+      border-color: var(--accent-border);
+    }
+
+    .ui-btn {
+      background: transparent;
+      border: none;
+      color: inherit; font: inherit;
+      width: 100%; text-align: left;
+      padding: 0; margin: 0;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .file-input-wrapper { position: relative; display: flex; align-items: center; width: 100%; }
+    .file-input-wrapper input[type="file"] {
+      position: absolute; left: 0; top: 0;
+      opacity: 0; width: 100%; height: 100%;
+      cursor: pointer;
+    }
+
+    .info-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .info-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); }
+    .info-value { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
+
+    /* ============ GAMEPAD ============ */
+    .gamepad-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 100;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      pointer-events: none;
+      padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+      transition: opacity 0.25s ease, visibility 0.25s;
+    }
+    .gamepad-overlay.hidden {
+      opacity: 0; visibility: hidden;
+      pointer-events: none !important;
+    }
+    .btn, .analog-container { pointer-events: auto; }
+
+    .pad-container {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      width: 100%; padding-bottom: 20px;
+    }
+    .pad-wing { display: flex; flex-direction: column; gap: 12px; }
+    .left-wing { align-items: flex-start; }
+    .right-wing { align-items: flex-end; }
+
+    .btn {
+      background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.25), rgba(255,255,255,0.05));
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
+      border-radius: 50%;
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: transform 0.05s ease, background-color 0.05s ease;
+    }
+    .btn:active, .btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      transform: scale(0.92);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .bumper-group { display: flex; gap: 8px; }
+    .btn-bumper { width: clamp(50px, 12vmin, 70px); height: clamp(35px, 8vmin, 45px); border-radius: 12px; font-size: 13px; }
+
+    .analog-container {
+      position: relative;
+      width: clamp(110px, 28vmin, 130px);
+      height: clamp(110px, 28vmin, 130px);
+      display: flex; justify-content: center; align-items: center;
+    }
+    .analog-base {
+      width: 100%; height: 100%;
+      background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.75) 100%);
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
+      position: relative;
+      display: flex; justify-content: center; align-items: center;
+    }
+    .analog-thumb {
+      width: 52px; height: 52px;
+      background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 100%);
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.6);
+      position: absolute;
+      pointer-events: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      will-change: transform;
+    }
+
+    .action-buttons { position: relative; width: clamp(120px, 30vmin, 140px); height: clamp(120px, 30vmin, 140px); }
+    .action-buttons .btn { position: absolute; width: clamp(42px, 11vmin, 55px); height: clamp(42px, 11vmin, 55px); }
+    
+    #triangle { top: 0; left: 50%; transform: translateX(-50%); color: #4ade80; } 
+    #square { left: 0; top: 50%; transform: translateY(-50%); color: #f472b6; }   
+    #circle { right: 0; top: 50%; transform: translateY(-50%); color: #f87171; }   
+    #cross { bottom: 0; left: 50%; transform: translateX(-50%); color: #60a5fa; }    
+
+    .center-buttons { display: flex; gap: 14px; align-self: flex-end; margin-bottom: 15px; }
+    .btn-center { width: clamp(58px, 14vmin, 72px); height: clamp(28px, 6vmin, 34px); border-radius: 16px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800; }
+    .btn-menu { background: linear-gradient(135deg, var(--menu-gradient-1), var(--menu-gradient-2)); border-color: var(--accent-border); }
+    .btn-stick { width: clamp(40px, 9vmin, 50px); height: clamp(40px, 9vmin, 50px); font-size: 11px; margin-top: 4px; }
+
+    .floating-menu-btn {
+      position: absolute;
+      top: max(20px, env(safe-area-inset-top));
+      left: max(20px, env(safe-area-inset-left));
+      z-index: 95;
+      padding: 10px 18px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, var(--menu-gradient-1), var(--menu-gradient-2));
+      border: 1.5px solid var(--accent-border);
+      color: #fff;
+      font-size: 11px; font-weight: 800;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 8px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), 0 0 10px var(--accent-glow);
+      transition: transform 0.1s ease, background-color 0.1s ease;
+      font-family: var(--font-display);
+    }
+    .floating-menu-btn:active {
+      transform: scale(0.94);
+      filter: brightness(1.3);
+    }
+  </style>
 </head>
-<body onload="init();">
-<div id="system-log"></div>
+<body class="xmb-open">
 
-<!-- Overlay para instalação -->
-<div id="installOverlay"></div>
+  <div class="canvas-container">
+    <canvas id="display"></canvas>
+  </div>
 
-<!-- Interface de instalação local -->
-<div id="localInstallUI">
-    <h2><i class="fas fa-hdd"></i> Instalar Jogo Local</h2>
-    
-    <div class="local-install-section">
-        <label for="localGameFile">Selecionar arquivo (ZIP, BIN, ISO):</label>
-        <input type="file" id="localGameFile" accept=".zip,.bin,.iso,.img,.cue,.ecm,.pbp">
-        <small style="color: #888;">Selecione um arquivo ZIP contendo o jogo ou arquivo BIN/ISO direto</small>
+  <canvas id="ps3-wave-canvas" class="active"></canvas>
+
+  <!-- Marca d'água (o tema decide se mostra; só aparece com body.xmb-open) -->
+  <div id="theme-watermark">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="50" cy="50" r="46" stroke-width="2.2"/>
+        <circle cx="50" cy="50" r="41" stroke-width="0.9" opacity="0.7"/>
+        <path d="M50 12 C 34 12, 22 22, 20 36 C 18 48, 22 58, 30 64 C 26 60, 22 52, 24 42 C 26 30, 36 22, 50 22 C 64 22, 74 30, 76 42 C 78 52, 74 60, 70 64 C 78 58, 82 48, 80 36 C 78 22, 66 12, 50 12 Z"/>
+        <path d="M40 34 L 44 30 L 48 34" stroke-width="1.8"/>
+        <path d="M52 34 L 56 30 L 60 34" stroke-width="1.8"/>
+        <path d="M34 22 L 28 14 M 66 22 L 72 14" stroke-width="2"/>
+        <path d="M44 44 Q 50 48, 56 44" stroke-width="1.8"/>
+        <path d="M42 50 Q 50 56, 58 50" stroke-width="1.4"/>
+        <path d="M38 48 Q 30 52, 24 50 M 62 48 Q 70 52, 76 50" stroke-width="1.2"/>
+        <path d="M50 66 C 38 66, 30 74, 34 82 C 38 90, 52 90, 58 84 C 64 78, 60 70, 52 70 C 46 70, 44 76, 48 80" stroke-width="1.6"/>
+      </g>
+    </svg>
+  </div>
+
+  <canvas id="theme-embers"></canvas>
+
+  <div id="xmb-overlay" class="xmb-overlay active">
+    <div class="xmb-header">
+      <div class="xmb-clock" id="xmb-clock">00:00</div>
+      <div class="xmb-date" id="xmb-date">01/01</div>
     </div>
-    
-    <div class="local-install-section">
-        <label for="localGameName">Nome do Jogo:</label>
-        <input type="text" id="localGameName" placeholder="Ex: Mortal Kombat 4">
-    </div>
-    
-    <div class="local-install-section">
-        <label for="localGameRegion">Região:</label>
-        <select id="localGameRegion">
-            <option value="USA">USA</option>
-            <option value="EUR">Europa</option>
-            <option value="JAP">Japão</option>
-            <option value="BRA">Brasil</option>
-            <option value="OTHER">Outra</option>
-        </select>
-    </div>
-    
-    <div class="progress-container" id="localInstallProgress">
-        <div class="progress-bar">
-            <div class="progress-fill" id="localProgressFill"></div>
+
+    <div class="xmb-container">
+      <div class="xmb-horizontal-bar" id="xmb-categories">
+        <div class="xmb-nav-item active" onclick="setXMBCategory(0)">
+          <span class="icon"><i class="fa-solid fa-gamepad"></i></span>
+          <span class="label">Jogos</span>
         </div>
-        <div class="progress-text" id="localProgressText">Processando arquivo...</div>
-    </div>
-    
-    <div class="local-install-buttons">
-        <button class="local-install-btn cancel" id="cancelLocalInstallBtn">
-            <i class="fas fa-times"></i> Cancelar
-        </button>
-        <button class="local-install-btn" id="startLocalInstallBtn">
-            <i class="fas fa-save"></i> Instalar no Cache
-        </button>
-    </div>
-</div>
-
-<canvas id="display"></canvas>
-
-<button id="settingsButton" type="button">
-    <img src="images/ic_controller_m1_button.png" alt="Configurações" width="30">
-</button>
-
-<div id="virtualGamepad">
-  
-    <div class="shoulders">
-      <div class="left-shoulder">
-        <button id="l2" class="btn-shoulder">L2</button>
-        <button id="l1" class="btn-shoulder">L1</button>
-      </div>
-      <div class="right-shoulder">
-        <button id="r1" class="btn-shoulder">R1</button>
-        <button id="r2" class="btn-shoulder">R2</button>
-      </div>
-    </div>
-
-    <div class="main-body">
-      <div class="dpad">
-        <button id="up"><img src="images/ic_controller_up_button.png"></button>
-        <button id="left"><img src="images/ic_controller_left_button.png"></button>
-        <button id="right"><img src="images/ic_controller_right_button.png"></button>
-        <button id="down"><img src="images/ic_controller_down_button.png"></button>
-      </div>
-
-      <div class="center">
-        <div class="system-buttons"> 
-          <button id="select" class="btn-system"><i class="fa-solid fa-minus"></i></button>
-          <button id="start" class="btn-system">start</button>
+        <div class="xmb-nav-item" onclick="setXMBCategory(1)">
+          <span class="icon"><i class="fa-solid fa-gear"></i></span>
+          <span class="label">Definições</span>
         </div>
-        <div class="analogs">
-          <button id="l3" class="btn-analog">L3</button>
-          <button id="r3" class="btn-analog">R3</button>
+        <div class="xmb-nav-item" onclick="setXMBCategory(2)">
+          <span class="icon"><i class="fa-solid fa-tv"></i></span>
+          <span class="label">Vídeo</span>
+        </div>
+        <div class="xmb-nav-item" onclick="setXMBCategory(3)">
+          <span class="icon"><i class="fa-solid fa-compact-disc"></i></span>
+          <span class="label">Info</span>
+        </div>
+        <div class="xmb-nav-item" onclick="setXMBCategory(4)">
+          <span class="icon"><i class="fa-solid fa-palette"></i></span>
+          <span class="label">Temas</span>
         </div>
       </div>
 
-      <div class="actions">
-        <button id="triangle"><img src="images/ic_controller_triangle_button.png"></button>
-        <button id="circle"><img src="images/ic_controller_circle_button.png"></button>
-        <button id="cross"><img src="images/ic_controller_cross_button.png"></button>
-        <button id="square"><img src="images/ic_controller_square_button.png"></button>
-      </div>
-    </div>
-
-</div>
-
-<div class="modal fade" id="settingsModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content p-3">
-      <h5>Configurações do Emulador</h5>
-      
-      <!-- Upload tradicional (executa direto) -->
-      <div class="mb-3">
-        <label class="form-label text-white">Carregar Jogo (executa direto):</label>
-        <input type="file" id="directGameFile" class="form-control" accept=".bin,.iso,.img,.cue,.pbp">
-        <small class="text-muted">Selecione um arquivo BIN/ISO para executar imediatamente</small>
-      </div>
-      
-      <!-- Botão para instalação local no cache -->
-      <button id="installLocalBtn" class="btn-install-local">
-        <i class="fas fa-plus-circle"></i> Instalar Novo Jogo no Cache
-      </button>
-      
-      <!-- Lista de jogos instalados -->
-      <div class="mt-4">
-        <h6 style="color: #00ccff;">
-          <i class="fas fa-gamepad"></i> Jogos Instalados no Cache:
-        </h6>
-        <div id="gamesContainer" class="mt-2">
-          <div class="no-games">Nenhum jogo instalado</div>
+      <div class="xmb-vertical-list" id="xmb-items">
+        <!-- Categoria 0: Jogos -->
+        <div class="xmb-sub-item active cat-0">
+          <span class="icon"><i class="fa-solid fa-folder-open"></i></span>
+          <div class="file-input-wrapper ui-btn">
+            Carregar ROM / ISO / CHD (✖)
+            <input type="file" id="file" title="Carregar Jogo" multiple accept=".bin,.cue,.iso,.chd,.vcd">
+          </div>
         </div>
+
+        <!-- Categoria 1: Definições -->
+        <div class="xmb-sub-item cat-1" style="display:none;" onclick="togglePauseGame()">
+          <span class="icon"><i class="fa-solid fa-pause"></i></span>
+          <button id="btn-pause" class="ui-btn">Pausar Emulação</button>
+        </div>
+        <div class="xmb-sub-item cat-1" style="display:none;" onclick="closeXMB()">
+          <span class="icon"><i class="fa-solid fa-play"></i></span>
+          <button class="ui-btn">Retomar Jogo (●)</button>
+        </div>
+        <div class="xmb-sub-item cat-1" style="display:none;" onclick="toggleVirtualGamepad()">
+          <span class="icon"><i class="fa-solid fa-gamepad"></i></span>
+          <button id="btn-gamepad-toggle" class="ui-btn">Gamepad Virtual: Desativado</button>
+        </div>
+
+        <!-- Categoria 2: Vídeo -->
+        <div class="xmb-sub-item cat-2" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-palette"></i></span>
+          <button id="quality" class="ui-btn">Qualidade Visual: Q1</button>
+        </div>
+        <div class="xmb-sub-item cat-2" style="display:none;" onclick="toggleFullscreen()">
+          <span class="icon"><i class="fa-solid fa-expand"></i></span>
+          <button class="ui-btn">Modo Tela Cheia</button>
+        </div>
+
+        <!-- Categoria 3: Info -->
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-compact-disc"></i></span>
+          <div class="info-content"><div class="info-label">Título</div><div class="info-value" id="game-title">Sem Jogo Carregado</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-barcode"></i></span>
+          <div class="info-content"><div class="info-label">Serial</div><div class="info-value" id="game-serial">Desconhecido</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-earth-americas"></i></span>
+          <div class="info-content"><div class="info-label">Região</div><div class="info-value" id="game-region">Desconhecido</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-database"></i></span>
+          <div class="info-content"><div class="info-label">Tipo de CD</div><div class="info-value" id="game-cd-type">PS1 CD-ROM</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-list"></i></span>
+          <div class="info-content"><div class="info-label">Faixas</div><div class="info-value" id="game-tracks">0 faixas</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-weight-hanging"></i></span>
+          <div class="info-content"><div class="info-label">Tamanho</div><div class="info-value" id="game-filesize">0 Bytes</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-tag"></i></span>
+          <div class="info-content"><div class="info-label">ID do Volume</div><div class="info-value" id="game-volume-id">-</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;">
+          <span class="icon"><i class="fa-solid fa-building"></i></span>
+          <div class="info-content"><div class="info-label">Editora</div><div class="info-value" id="game-publisher">-</div></div>
+        </div>
+        <div class="xmb-sub-item cat-3" style="display:none;" onclick="refreshCDInfo()">
+          <span class="icon"><i class="fa-solid fa-rotate"></i></span>
+          <button class="ui-btn">Atualizar Informações</button>
+        </div>
+
+        <!-- Categoria 4: Temas (itens gerados dinamicamente pelo ThemeManager) -->
+        <!-- Os itens .cat-4 serão injetados aqui -->
       </div>
-      
-      <hr style="border-color: #444;">
-      
-      <!-- Configurações do emulador -->
-      <button id="quality" class="modal-btn">Qualidade: Padrão</button>
-      <button id="fullscreenBtn" class="modal-btn">
-        <i class="fas fa-expand"></i> Tela Cheia
-      </button>
-      <button id="toggleGamepadBtn" class="modal-btn">
-        🕹️ Gamepad Virtual: Ativado
-      </button>
-      
-      <div id="biosNotification"></div>
     </div>
   </div>
-</div>
 
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gpu.js/2.12.0/gpu.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/eruda@3.0.0/eruda.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <div id="floating-menu-btn" class="floating-menu-btn">
+    <i class="fa-solid fa-bars"></i> Menu
+  </div>
 
-<!-- Scripts do emulador -->
-<script src="js/module/biosinject.js"></script>
-<script type="text/javascript" src="base64.js"></script>
-<script type="text/javascript" src="trace.js"></script>
-<script type="text/javascript" src="utils.js"></script>
-<script type="text/javascript" src="psx-core/core.js"></script>
-<script type="text/javascript" src="psx-core/config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.x/dist/pixi.min.js"></script>
-<script type="text/javascript" src="webGlHQ.js"></script>
-<script type="text/javascript" src="psx-core/memory.js"></script>
-<script type="text/javascript" src="psx-core/enge.js"></script>
-<script type="text/javascript" src="psx-core/cdrom.js"></script>
-<script type="text/javascript" src="psx-core/recompiler.js"></script>
-<script type="text/javascript" src="psx-core/directMemoryAccess.js"></script>
-<script type="text/javascript" src="psx-core/geometryTransformEngine.js"></script>
-<script type="text/javascript" src="psx-core/graphicsProcessingUnit.js"></script>
-<script type="text/javascript" src="psx-core/macroBlockDecoder.js"></script>
-<script type="text/javascript" src="psx-core/serialPorts.js"></script>
-<script type="text/javascript" src="psx-core/soundProcessingUnit.js"></script>
-<script type="text/javascript" src="psx-core/rootCounters.js"></script>
-<script type="text/javascript" src="psx-core/gamepad.js"></script>
-<script type="text/javascript" src="index.js"></script>
-<script src="dB.js"></script>
+  <div class="gamepad-overlay hidden" id="main-ui">
+    <div class="pad-container">
+      <div class="pad-wing left-wing">
+        <div class="bumper-group">
+          <div id="l2" class="btn btn-bumper">L2</div>
+          <div id="l1" class="btn btn-bumper">L1</div>
+        </div>
+        <div class="analog-container" id="analogLeft">
+          <div class="analog-base"><div class="analog-thumb" id="thumbLeft"></div></div>
+        </div>
+        <div id="l3" class="btn btn-stick">L3</div>
+      </div>
 
-<!-- Game Manager LOCAL (sem CORS) -->
-<script src="psx-core/localGameManager.js"></script>
+      <div class="center-buttons">
+        <div id="btn-menu-trigger" class="btn btn-center btn-menu">MENU</div>
+        <div id="start" class="btn btn-center">START</div>
+      </div>
 
-<script src="psx-core/virtualpad.js"></script>
+      <div class="pad-wing right-wing">
+        <div class="bumper-group">
+          <div id="r1" class="btn btn-bumper">R1</div>
+          <div id="r2" class="btn btn-bumper">R2</div>
+        </div>
+        <div class="action-buttons">
+          <div id="triangle" class="btn">▲</div>
+          <div id="square" class="btn">■</div>
+          <div id="circle" class="btn">●</div>
+          <div id="cross" class="btn">✖</div>
+        </div>
+        <div id="r3" class="btn btn-stick">R3</div>
+      </div>
+    </div>
+  </div>
 
-<!-- Scripts inline -->
-<script>
-// Modal Settings
-const settingsButton = document.getElementById('settingsButton');
-const settingsModalEl = document.getElementById('settingsModal');
+  <!-- ==================== THEME MANAGER ==================== -->
+  <script type="text/javascript">
+    const ThemeManager = (function() {
+      const THEME_PREF_KEY = 'xmb_theme';
 
-if (settingsButton && settingsModalEl && window.bootstrap) {
-    const modal = new bootstrap.Modal(settingsModalEl);
-    settingsButton.addEventListener('click', () => modal.show());
-} else if (settingsButton) {
-    settingsButton.addEventListener('click', () => alert('Modal não disponível (Bootstrap ausente)'));
-}
+      const FALLBACK_MANIFEST = {
+        defaultTheme: 'ps3',
+        themes: [
+          { id: 'ps3',           file: 'ps3.json' },
+          { id: 'mortal-kombat', file: 'mortal-kombat.json' }
+        ]
+      };
+      const FALLBACK_THEMES = {
+        'ps3': {
+          id: 'ps3', name: 'PS3 Clássico', icon: 'fa-gamepad', themeColor: '#000000',
+          cssVariables: {
+            '--accent':'#38bdf8','--accent-soft':'rgba(56,189,248,0.3)','--accent-glow':'rgba(56,189,248,0.4)',
+            '--accent-border':'rgba(56,189,248,0.8)','--accent-text':'#7dd3fc',
+            '--menu-gradient-1':'rgba(56,189,248,0.55)','--menu-gradient-2':'rgba(3,105,161,0.55)',
+            '--xmb-text-glow':'rgba(56,189,248,0.5)',
+            '--font-display':"-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
+            '--watermark-opacity':'0','--watermark-color':'#38bdf8'
+          },
+          background: { stops:['#020d1f','#082545','#010612'], positions:[0,0.5,1] },
+          waves: [
+            { amplitude:70, freq:0.0018, speed:0.012, offset:0,   color1:'rgba(56,189,248,0.35)', color2:'rgba(3,105,161,0.05)', heightRatio:0.52 },
+            { amplitude:50, freq:0.0025, speed:0.018, offset:2.2, color1:'rgba(14,165,233,0.25)', color2:'rgba(15,23,42,0.01)',  heightRatio:0.58 },
+            { amplitude:90, freq:0.0012, speed:0.008, offset:4.5, color1:'rgba(99,102,241,0.3)',  color2:'rgba(30,27,75,0.02)',  heightRatio:0.48 }
+          ],
+          waveSpeedMultiplier: 1,
+          effects: { watermark:{enabled:false}, glowPulses:{enabled:false}, embers:{enabled:false} }
+        },
+        'mortal-kombat': {
+          id: 'mortal-kombat', name: 'Mortal Kombat', icon: 'fa-dragon', themeColor: '#1a0303',
+          cssVariables: {
+            '--accent':'#f59e0b','--accent-soft':'rgba(245,158,11,0.35)','--accent-glow':'rgba(239,68,68,0.6)',
+            '--accent-border':'rgba(245,158,11,0.95)','--accent-text':'#fbbf24',
+            '--menu-gradient-1':'rgba(220,38,38,0.7)','--menu-gradient-2':'rgba(120,12,12,0.75)',
+            '--xmb-text-glow':'rgba(239,68,68,0.7)',
+            '--font-display':"Impact, 'Arial Black', sans-serif",
+            '--watermark-opacity':'0.14','--watermark-color':'#dc2626'
+          },
+          background: { stops:['#1a0303','#3d0707','#0a0101','#000000'], positions:[0,0.45,0.8,1] },
+          waves: [
+            { amplitude:80, freq:0.0020, speed:0.014, offset:0,   color1:'rgba(239,68,68,0.55)',  color2:'rgba(120,12,12,0.05)', heightRatio:0.52 },
+            { amplitude:55, freq:0.0028, speed:0.020, offset:2.2, color1:'rgba(245,158,11,0.42)', color2:'rgba(80,20,5,0.02)',   heightRatio:0.58 },
+            { amplitude:95, freq:0.0013, speed:0.009, offset:4.5, color1:'rgba(251,191,36,0.38)', color2:'rgba(40,5,5,0.02)',    heightRatio:0.48 }
+          ],
+          waveSpeedMultiplier: 1.6,
+          effects: {
+            watermark: { enabled:true, color:'#dc2626' },
+            glowPulses: { enabled:true, count:6, color:'rgba(251,146,60,0.18)' },
+            embers: { enabled:true, maxParticles:90, hueStart:10, hueEnd:50, spawnChance:0.6 }
+          }
+        }
+      };
 
-// Fullscreen Functionality
-(() => {
-    const btn = document.getElementById('fullscreenBtn');
-    if (!btn) return;
+      let themes = {};
+      let manifest = null;
+      let currentId = null;
+      let listeners = [];
 
-    const isFullscreen = () => !!(
-        document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        document.msFullscreenElement
-    );
+      async function loadManifest() {
+        try {
+          const res = await fetch('temas/temas.json', { cache: 'no-cache' });
+          if (!res.ok) throw new Error('manifest');
+          manifest = await res.json();
+        } catch (e) {
+          console.warn('[ThemeManager] Usando manifesto embutido (fetch falhou).', e.message);
+          manifest = FALLBACK_MANIFEST;
+        }
+      }
 
-    const enterFullscreen = () => {
-        const elem = document.documentElement;
-        if (elem.requestFullscreen) elem.requestFullscreen();
-        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
-        else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
-    };
+      async function loadOneTheme(meta) {
+        try {
+          const res = await fetch('temas/' + meta.file, { cache: 'no-cache' });
+          if (!res.ok) throw new Error('theme ' + meta.id);
+          themes[meta.id] = await res.json();
+        } catch (e) {
+          console.warn(`[ThemeManager] Fallback para tema "${meta.id}".`, e.message);
+          themes[meta.id] = FALLBACK_THEMES[meta.id];
+        }
+      }
 
-    const exitFullscreen = () => {
+      function notify(theme) { listeners.forEach(fn => { try { fn(theme); } catch(e){} }); }
+
+      function apply(id) {
+        const theme = themes[id];
+        if (!theme) return;
+        currentId = id;
+
+        // 1) CSS variables
+        const root = document.documentElement;
+        Object.entries(theme.cssVariables || {}).forEach(([k, v]) => root.style.setProperty(k, v));
+
+        // 2) theme-color do navegador
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta && theme.themeColor) meta.setAttribute('content', theme.themeColor);
+
+        // 3) Marca d'água
+        const wm = theme.effects && theme.effects.watermark;
+        document.body.classList.toggle('theme-has-watermark', !!(wm && wm.enabled));
+        if (wm && wm.color) root.style.setProperty('--watermark-color', wm.color);
+
+        // 4) Faíscas/brasas
+        const em = theme.effects && theme.effects.embers;
+        document.body.classList.toggle('theme-has-embers', !!(em && em.enabled));
+
+        // 5) Persistir
+        try { localStorage.setItem(THEME_PREF_KEY, id); } catch (e) {}
+
+        // 6) Atualiza lista no XMB
+        renderThemeList();
+
+        // 7) Avisar engines
+        notify(theme);
+      }
+
+      function cycle() {
+        if (!manifest || !manifest.themes || !manifest.themes.length) return;
+        const ids = manifest.themes.map(t => t.id);
+        const idx = ids.indexOf(currentId);
+        const next = ids[(idx + 1) % ids.length];
+        if (typeof vibrateDevice === 'function') vibrateDevice();
+        apply(next);
+      }
+
+      // ============== LISTA DE TEMAS NO XMB ==============
+      function renderThemeList() {
+        const container = document.getElementById('xmb-items');
+        if (!container) return;
+
+        // Remove itens antigos
+        container.querySelectorAll('.theme-item').forEach(el => el.remove());
+
+        // Adiciona um item para cada tema
+        manifest.themes.forEach(meta => {
+          const theme = themes[meta.id];
+          if (!theme) return;
+
+          const item = document.createElement('div');
+          item.className = 'xmb-sub-item cat-4 theme-item';
+          item.style.display = 'none';
+          item.dataset.themeId = meta.id;
+          if (meta.id === currentId) item.classList.add('is-active-theme');
+
+          // Cor de preview do tema (accent)
+          const previewColor = (theme.cssVariables && theme.cssVariables['--accent']) || '#fff';
+
+          item.innerHTML = `
+            <span class="icon">
+              <i class="fa-solid ${theme.icon || 'fa-palette'}"
+                 style="color:${previewColor}; text-shadow: 0 0 10px ${previewColor};"></i>
+            </span>
+            <button class="ui-btn">
+              <span class="theme-name">${theme.name || meta.id}</span>
+              <i class="fa-solid fa-check theme-check"></i>
+            </button>
+          `;
+
+          item.addEventListener('click', () => selectTheme(meta.id));
+          container.appendChild(item);
+        });
+
+        // Se a categoria atual for Temas, reaplica visibilidade
+        if (typeof currentCategoryIndex !== 'undefined' && currentCategoryIndex === 4) {
+          // Reaplica o filtro display:none / flex para refletir os novos itens
+          document.querySelectorAll('.xmb-sub-item').forEach(el => el.style.display = 'none');
+          document.querySelectorAll('.cat-4').forEach((el, idx) => {
+            el.style.display = 'flex';
+            el.classList.toggle('active', idx === 0);
+          });
+        }
+      }
+
+      function selectTheme(id) {
+        if (!themes[id]) return;
+        if (typeof vibrateDevice === 'function') vibrateDevice();
+        apply(id);
+      }
+
+      function getCurrent() { return themes[currentId] || null; }
+      function getAll()     { return manifest ? manifest.themes.map(t => themes[t.id]).filter(Boolean) : []; }
+      function getCurrentId(){ return currentId; }
+      function onChange(fn) { listeners.push(fn); }
+
+      async function init() {
+        await loadManifest();
+        await Promise.all(manifest.themes.map(loadOneTheme));
+        let initial = manifest.defaultTheme;
+        try {
+          const saved = localStorage.getItem(THEME_PREF_KEY);
+          if (saved && themes[saved]) initial = saved;
+        } catch (e) {}
+        apply(initial);
+        renderThemeList();
+      }
+
+      return { init, apply, cycle, selectTheme, getCurrent, getAll, getCurrentId, onChange };
+    })();
+  </script>
+
+  <!-- ==================== WAVE ENGINE ==================== -->
+  <script type="text/javascript">
+    const PS3WaveEngine = (function() {
+      const canvas = document.getElementById('ps3-wave-canvas');
+      const ctx = canvas.getContext('2d');
+      let animId = null;
+      let time = 0;
+
+      let config = {
+        background: { stops:['#020d1f','#082545','#010612'], positions:[0,0.5,1] },
+        waves: [
+          { amplitude:70, freq:0.0018, speed:0.012, offset:0, color1:'rgba(56,189,248,0.35)', color2:'rgba(3,105,161,0.05)', heightRatio:0.52 }
+        ],
+        waveSpeedMultiplier: 1,
+        effects: { glowPulses:{enabled:false} }
+      };
+
+      function setTheme(t) { if (t) config = t; }
+
+      function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+      window.addEventListener('resize', resize);
+      resize();
+
+      function drawWave() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const bg = config.background || { stops:['#000'], positions:[0] };
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        bg.stops.forEach((c, i) => bgGrad.addColorStop(bg.positions[i] ?? (i / Math.max(1, bg.stops.length - 1)), c));
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const speedMul = config.waveSpeedMultiplier || 1;
+        time += speedMul;
+
+        (config.waves || []).forEach(w => {
+          ctx.beginPath();
+          ctx.moveTo(0, canvas.height);
+          for (let x = 0; x <= canvas.width; x += 6) {
+            const y = Math.sin(x * w.freq + time * w.speed + w.offset) * w.amplitude
+                    + Math.cos(x * w.freq * 0.6 + time * w.speed * 0.7) * (w.amplitude * 0.6)
+                    + (canvas.height * w.heightRatio);
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(canvas.width, canvas.height);
+          ctx.closePath();
+          const waveGrad = ctx.createLinearGradient(0, canvas.height * 0.3, 0, canvas.height);
+          waveGrad.addColorStop(0, w.color1);
+          waveGrad.addColorStop(1, w.color2);
+          ctx.fillStyle = waveGrad;
+          ctx.fill();
+        });
+
+        const gp = config.effects && config.effects.glowPulses;
+        if (gp && gp.enabled) {
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < (gp.count || 6); i++) {
+            const cx = (Math.sin(time * 0.01 + i * 1.7) * 0.5 + 0.5) * canvas.width;
+            const cy = canvas.height * (0.75 + Math.sin(time * 0.008 + i) * 0.08);
+            const r  = 120 + Math.sin(time * 0.02 + i) * 40;
+            const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            glow.addColorStop(0, gp.color || 'rgba(255,180,80,0.18)');
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalCompositeOperation = 'source-over';
+        }
+
+        animId = requestAnimationFrame(drawWave);
+      }
+
+      return {
+        setTheme,
+        start() { canvas.classList.add('active'); if (!animId) drawWave(); },
+        stop() {
+          canvas.classList.remove('active');
+          if (animId) { cancelAnimationFrame(animId); animId = null; ctx.clearRect(0, 0, canvas.width, canvas.height); }
+        }
+      };
+    })();
+  </script>
+
+  <!-- ==================== EMBERS ENGINE ==================== -->
+  <script type="text/javascript">
+    const ThemeEmbers = (function() {
+      const canvas = document.getElementById('theme-embers');
+      const ctx = canvas.getContext('2d');
+      let animId = null;
+      let particles = [];
+      let config = null;
+
+      function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+      window.addEventListener('resize', resize);
+      resize();
+
+      function setTheme(t) {
+        config = (t && t.effects && t.effects.embers) || null;
+        if (!config || !config.enabled) {
+          particles = [];
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+
+      function spawn() {
+        const max = (config && config.maxParticles) || 60;
+        if (particles.length > max) return;
+        const hueStart = (config && config.hueStart) ?? 10;
+        const hueEnd   = (config && config.hueEnd)   ?? 50;
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: canvas.height + 10,
+          vy: -(0.5 + Math.random() * 1.6),
+          vx: (Math.random() - 0.5) * 0.6,
+          life: 1,
+          decay: 0.003 + Math.random() * 0.005,
+          size: 1 + Math.random() * 2.5,
+          hue: hueStart + Math.random() * (hueEnd - hueStart)
+        });
+      }
+
+      function tick() {
+        const shouldRun = config && config.enabled
+          && document.body.classList.contains('theme-has-embers')
+          && document.body.classList.contains('xmb-open');
+
+        if (!shouldRun) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          particles = [];
+          animId = requestAnimationFrame(tick);
+          return;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const chance = config.spawnChance ?? 0.6;
+        if (Math.random() < chance) spawn();
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx + Math.sin(p.y * 0.01) * 0.4;
+          p.y += p.vy;
+          p.life -= p.decay;
+          if (p.life <= 0 || p.y < -20) { particles.splice(i, 1); continue; }
+          const alpha = p.life * 0.9;
+          const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 6);
+          grad.addColorStop(0, `hsla(${p.hue}, 100%, 65%, ${alpha})`);
+          grad.addColorStop(0.5, `hsla(${p.hue - 10}, 100%, 50%, ${alpha * 0.5})`);
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        animId = requestAnimationFrame(tick);
+      }
+
+      return { setTheme, start() { if (!animId) tick(); } };
+    })();
+
+    ThemeManager.onChange(theme => {
+      PS3WaveEngine.setTheme(theme);
+      ThemeEmbers.setTheme(theme);
+    });
+    ThemeEmbers.start();
+  </script>
+
+  <!-- ==================== XMB + GAMEPAD + ANALÓGICO ==================== -->
+  <script type="text/javascript">
+    let isXMBOpen = true;
+    let currentCategoryIndex = 0;
+    let currentItemIndex = 0;
+    const TOTAL_CATEGORIES = 5; // 0=Jogos, 1=Definições, 2=Vídeo, 3=Info, 4=Temas
+
+    /* ==================== GAMEPAD VIRTUAL ==================== */
+    const GAMEPAD_PREF_KEY = 'xmb_virtual_gamepad';
+    let virtualGamepadEnabled = false;
+
+    function applyGamepadVisibility() {
+      const mainUi = document.getElementById('main-ui');
+      const btn = document.getElementById('btn-gamepad-toggle');
+      const floating = document.getElementById('floating-menu-btn');
+
+      if (virtualGamepadEnabled) {
+        mainUi.classList.remove('hidden');
+        if (btn) btn.textContent = 'Gamepad Virtual: Ativado';
+        if (floating) floating.style.display = 'none';
+      } else {
+        mainUi.classList.add('hidden');
+        if (btn) btn.textContent = 'Gamepad Virtual: Desativado';
+        if (floating) floating.style.display = 'flex';
+      }
+    }
+
+    function toggleVirtualGamepad() {
+      vibrateDevice();
+      virtualGamepadEnabled = !virtualGamepadEnabled;
+      applyGamepadVisibility();
+      try { localStorage.setItem(GAMEPAD_PREF_KEY, virtualGamepadEnabled ? '1' : '0'); } catch (e) {}
+    }
+
+    (function restoreGamepadPref() {
+      try { if (localStorage.getItem(GAMEPAD_PREF_KEY) === '1') virtualGamepadEnabled = true; } catch (e) {}
+      applyGamepadVisibility();
+    })();
+
+    function updateXMBClock() {
+      const now = new Date();
+      document.getElementById('xmb-clock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('xmb-date').textContent = now.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+    }
+    setInterval(updateXMBClock, 1000);
+    updateXMBClock();
+
+    function vibrateDevice() { if (navigator.vibrate) navigator.vibrate(20); }
+
+    function openXMB() {
+      isXMBOpen = true;
+      document.body.classList.add('xmb-open');
+      document.getElementById('xmb-overlay').classList.add('active');
+      PS3WaveEngine.start();
+      setXMBCategory(currentCategoryIndex);
+    }
+
+    function closeXMB() {
+      isXMBOpen = false;
+      document.body.classList.remove('xmb-open');
+      document.getElementById('xmb-overlay').classList.remove('active');
+      PS3WaveEngine.stop();
+    }
+
+    function toggleXMB() {
+      vibrateDevice();
+      if (!isXMBOpen) {
+        if (typeof window.togglePause === 'function' && typeof window.isRunning === 'function') {
+          if (window.isRunning()) window.togglePause();
+        }
+        openXMB();
+      } else {
+        closeXMB();
+        if (typeof window.togglePause === 'function' && typeof window.isRunning === 'function') {
+          if (!window.isRunning()) window.togglePause();
+        }
+      }
+    }
+
+    function setXMBCategory(catIndex) {
+      if (!isXMBOpen) return;
+      currentCategoryIndex = catIndex;
+      currentItemIndex = 0;
+      document.getElementById('xmb-categories').style.transform = `translateX(${-catIndex * 135}px)`;
+      document.querySelectorAll('.xmb-nav-item').forEach((el, idx) => el.classList.toggle('active', idx === catIndex));
+      document.querySelectorAll('.xmb-sub-item').forEach(el => el.style.display = 'none');
+      document.querySelectorAll(`.cat-${catIndex}`).forEach((el, idx) => {
+        el.style.display = 'flex';
+        el.classList.toggle('active', idx === 0);
+      });
+      updateVerticalScroll();
+    }
+
+    function updateVerticalScroll() {
+      const visibleItems = document.querySelectorAll(`.cat-${currentCategoryIndex}`);
+      visibleItems.forEach((el, idx) => el.classList.toggle('active', idx === currentItemIndex));
+      document.getElementById('xmb-items').style.transform = `translateY(${-currentItemIndex * 62}px)`;
+    }
+
+    function togglePauseGame() {
+      vibrateDevice();
+      if (typeof window.togglePause !== 'function') return;
+      const nowRunning = window.togglePause();
+      const btn = document.getElementById('btn-pause');
+      if (btn) btn.textContent = nowRunning ? 'Pausar Emulação' : 'Retomar Emulação';
+    }
+
+    function refreshCDInfo() {
+      vibrateDevice();
+      if (window.GameInfo) {
+        window.GameInfo.extractCDInfo();
+        window.GameInfo.parseISO9660();
+        window.GameInfo.updateUIOnLoad();
+      }
+    }
+
+    function toggleFullscreen() {
+      vibrateDevice();
+      let el = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      } else {
         if (document.exitFullscreen) document.exitFullscreen();
         else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-        else if (document.msExitFullscreen) document.msExitFullscreen();
-    };
+      }
+    }
 
-    const toggleFullscreen = () => {
-        if (isFullscreen()) exitFullscreen();
-        else enterFullscreen();
-    };
-
-    const updateButton = () => {
-        btn.innerHTML = isFullscreen() ? 
-            '<i class="fas fa-compress"></i> Sair do Fullscreen' : 
-            '<i class="fas fa-expand"></i> Entrar em Fullscreen';
-    };
-
-    btn.addEventListener('click', toggleFullscreen);
-    document.addEventListener('fullscreenchange', updateButton);
-    document.addEventListener('webkitfullscreenchange', updateButton);
-    document.addEventListener('msfullscreenchange', updateButton);
-
-    const canvas = document.getElementById('display');
-    const resizeCanvas = () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    updateButton();
-})();
-
-// Gamepad Toggle Functionality
-(() => {
-    const gamepadBtn = document.getElementById('toggleGamepadBtn');
-    const virtualGamepad = document.getElementById('virtualGamepad');
-
-    if (!gamepadBtn || !virtualGamepad) return;
-
-    let gamepadActive = localStorage.getItem('gamepadActive');
-    gamepadActive = gamepadActive === null ? true : gamepadActive === 'true';
-
-    const updateButtonText = () => {
-        gamepadBtn.textContent = `🕹️ Gamepad Virtual: ${gamepadActive ? 'Ativado' : 'Desativado'}`;
-    };
-
-    virtualGamepad.style.display = gamepadActive ? 'flex' : 'none';
-    updateButtonText();
-
-    gamepadBtn.addEventListener('click', () => {
-        gamepadActive = !gamepadActive;
-        virtualGamepad.style.display = gamepadActive ? 'flex' : 'none';
-        updateButtonText();
-        localStorage.setItem('gamepadActive', gamepadActive);
+    document.getElementById('file').addEventListener('change', function(e) {
+      if (e.target.files.length > 0) {
+        closeXMB();
+        if (typeof window.togglePause === 'function' && typeof window.isRunning === 'function') {
+          if (!window.isRunning()) window.togglePause();
+        }
+        const loadedFile = e.target.files[0];
+        if (window.GameInfo) {
+          window.GameInfo.onFileLoaded(loadedFile.name, loadedFile.size);
+          let attempts = 0;
+          const cdrWatcher = setInterval(function () {
+            attempts++;
+            if (window.cdr && window.cdr.tracks) {
+              window.GameInfo.onFileLoaded(loadedFile.name, loadedFile.size);
+              clearInterval(cdrWatcher);
+            } else if (attempts > 20) clearInterval(cdrWatcher);
+          }, 500);
+        }
+      }
     });
-})();
 
-// NOVO CÓDIGO PARA INSTALAÇÃO LOCAL
-(() => {
-    // Elementos da interface local
-    const installLocalBtn = document.getElementById('installLocalBtn');
-    const localInstallUI = document.getElementById('localInstallUI');
-    const installOverlay = document.getElementById('installOverlay');
-    const cancelLocalInstallBtn = document.getElementById('cancelLocalInstallBtn');
-    const startLocalInstallBtn = document.getElementById('startLocalInstallBtn');
-    const localGameFile = document.getElementById('localGameFile');
-    const localGameName = document.getElementById('localGameName');
-    const localGameRegion = document.getElementById('localGameRegion');
-    const localInstallProgress = document.getElementById('localInstallProgress');
-    const localProgressFill = document.getElementById('localProgressFill');
-    const localProgressText = document.getElementById('localProgressText');
-    
-    // Upload direto (executa sem instalar)
-    const directGameFile = document.getElementById('directGameFile');
-    
-    // Mostrar interface de instalação local
-    function showLocalInstallUI() {
-        localInstallUI.classList.add('visible');
-        installOverlay.classList.add('visible');
-        localInstallProgress.style.display = 'none';
-        localGameFile.value = '';
-        localGameName.value = '';
-        localGameRegion.value = 'USA';
-    }
-    
-    // Ocultar interface
-    function hideLocalInstallUI() {
-        localInstallUI.classList.remove('visible');
-        installOverlay.classList.remove('visible');
-    }
-    
-    // Event Listeners
-    if (installLocalBtn) {
-        installLocalBtn.addEventListener('click', showLocalInstallUI);
-    }
-    
-    if (cancelLocalInstallBtn) {
-        cancelLocalInstallBtn.addEventListener('click', hideLocalInstallUI);
-    }
-    
-    if (installOverlay) {
-        installOverlay.addEventListener('click', hideLocalInstallUI);
-    }
-    
-    // Upload direto (executa sem salvar)
-    if (directGameFile) {
-        directGameFile.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                if (window.openFile) {
-                    window.openFile(file);
-                    
-                    // Mostrar notificação
-                    if (window.showNotification) {
-                        window.showNotification(`Carregando ${file.name}...`, 'loading');
-                    }
-                    
-                    // Fechar modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
-                    if (modal) modal.hide();
-                }
-            }
-        });
-    }
-    
-    // Iniciar instalação local no cache
-    if (startLocalInstallBtn) {
-        startLocalInstallBtn.addEventListener('click', async () => {
-            const file = localGameFile.files[0];
-            const name = localGameName.value.trim() || file?.name || `Jogo-${Date.now()}`;
-            const region = localGameRegion.value;
-            
-            if (!file) {
-                alert('Por favor, selecione um arquivo!');
-                return;
-            }
-            
-            // Apenas mostrar aviso para arquivos muito grandes (> 2GB)
-        if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
-            if (!confirm(`Este arquivo tem ${Math.round(file.size / (1024*1024*1024) * 100)/100}GB.\nA instalação pode demorar.\nContinuar?`)) {
-                return;
-            }
+    const menuBtn = document.getElementById('btn-menu-trigger');
+    menuBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggleXMB(); });
+
+    const floatingMenuBtn = document.getElementById('floating-menu-btn');
+    floatingMenuBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggleXMB(); });
+
+    function navigateXMBMenu(dir) {
+      if (!isXMBOpen) return;
+      vibrateDevice();
+      const visibleItems = document.querySelectorAll(`.cat-${currentCategoryIndex}`);
+
+      if (dir === 'right' && currentCategoryIndex < TOTAL_CATEGORIES - 1) setXMBCategory(currentCategoryIndex + 1);
+      else if (dir === 'left' && currentCategoryIndex > 0) setXMBCategory(currentCategoryIndex - 1);
+      else if (dir === 'down' && currentItemIndex < visibleItems.length - 1) { currentItemIndex++; updateVerticalScroll(); }
+      else if (dir === 'up' && currentItemIndex > 0) { currentItemIndex--; updateVerticalScroll(); }
+      else if (dir === 'enter') {
+        const activeItem = visibleItems[currentItemIndex];
+        if (activeItem) {
+          const fileInput = activeItem.querySelector('input[type="file"]');
+          if (fileInput) fileInput.click(); else activeItem.click();
         }
-            
-            // Mostrar progresso
-            localInstallProgress.style.display = 'block';
-            localProgressFill.style.width = '0%';
-            localProgressText.textContent = 'Lendo arquivo...';
-            
-            try {
-                if (window.localGameManager && window.localGameManager.installGameFromFile) {
-                    await window.localGameManager.installGameFromFile(file, name, region, (progress) => {
-                        const percent = Math.round(progress * 100);
-                        localProgressFill.style.width = `${percent}%`;
-                        localProgressText.textContent = `Processando: ${percent}%`;
-                    });
-                    
-                    // Sucesso
-                    localProgressText.textContent = 'Instalação completa!';
-                    localProgressFill.style.width = '100%';
-                    
-                    setTimeout(() => {
-                        hideLocalInstallUI();
-                        
-                        // Recarregar lista de jogos
-                        if (window.localGameManager && window.localGameManager.loadInstalledGames) {
-                            window.localGameManager.loadInstalledGames();
-                        }
-                        
-                        // Mostrar notificação
-                        if (window.showNotification) {
-                            window.showNotification(`"${name}" instalado no cache!`, 'success');
-                        }
-                    }, 1000);
-                    
-                } else {
-                    throw new Error('Sistema de instalação local não disponível');
-                }
-            } catch (error) {
-                localProgressText.textContent = 'Erro na instalação';
-                localProgressFill.style.backgroundColor = '#ff3300';
-                localProgressFill.style.background = 'linear-gradient(90deg, #ff3300, #ff6600)';
-                console.error('Erro na instalação local:', error);
-                
-                // Mostrar notificação de erro
-                if (window.showNotification) {
-                    window.showNotification(`Erro: ${error.message}`, 'error');
-                }
-            }
-        });
-    }
-    
-    // Quando o arquivo é selecionado, preencher automaticamente o nome
-    if (localGameFile) {
-        localGameFile.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file && !localGameName.value) {
-                // Extrair nome do arquivo sem extensão
-                const fileName = file.name.replace(/\.[^/.]+$/, "");
-                localGameName.value = fileName.replace(/[_-]/g, ' ');
-                
-                // Tentar detectar região pelo nome
-                const nameUpper = fileName.toUpperCase();
-                if (nameUpper.includes('(USA)') || nameUpper.includes('[USA]')) {
-                    localGameRegion.value = 'USA';
-                } else if (nameUpper.includes('(EUR)') || nameUpper.includes('[EUR]') || nameUpper.includes('(EU)')) {
-                    localGameRegion.value = 'EUR';
-                } else if (nameUpper.includes('(JAP)') || nameUpper.includes('[JAP]') || nameUpper.includes('(JP)')) {
-                    localGameRegion.value = 'JAP';
-                } else if (nameUpper.includes('(BRA)') || nameUpper.includes('[BRA]')) {
-                    localGameRegion.value = 'BRA';
-                }
-            }
-        });
-    }
-    
-    // Carregar jogos quando o modal for aberto
-    const settingsModalEl = document.getElementById('settingsModal');
-    if (settingsModalEl) {
-        settingsModalEl.addEventListener('show.bs.modal', () => {
-            if (window.localGameManager && window.localGameManager.loadInstalledGames) {
-                window.localGameManager.loadInstalledGames();
-            }
-        });
-    }
-})();
-
-// Debug Panel
-(function() {
-    function createDebugPanel() {
-        if (document.getElementById('gpu-debug-panel')) return;
-
-        const panel = document.createElement('div');
-        panel.id = 'gpu-debug-panel';
-        
-        panel.innerHTML = `
-            FPS: <span id="debug-fps" style="color:#fff">0</span> | 
-            RENDER: <span id="debug-rfps" style="color:#fff">0</span> | 
-            DRAWS: <span id="debug-draws" style="color:#fff">0</span> | 
-            VERTS: <span id="debug-verts" style="color:#fff">0</span> |
-            <span id="debug-status" style="color:#00ff95">[STABLE]</span>
-        `;
-
-        Object.assign(panel.style, {
-            position: 'fixed',
-            top: '5px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            color: '#00d4ff',
-            fontFamily: '"Lucida Console", Monaco, monospace',
-            fontWeight: 'bold',
-            fontSize: '11px',
-            letterSpacing: '1px',
-            pointerEvents: 'none',
-            zIndex: '10000',
-            textAlign: 'center',
-            textShadow: `
-                -1px -1px 0 #000,  
-                 1px -1px 0 #000,
-                -1px  1px 0 #000,
-                 1px  1px 0 #000,
-                 0px  2px 4px rgba(0,0,0,0.8)
-            `,
-            whiteSpace: 'nowrap',
-            background: 'rgba(0, 0, 0, 0.5)',
-            padding: '5px 10px',
-            borderRadius: '5px',
-            border: '1px solid rgba(0, 212, 255, 0.3)'
-        });
-
-        document.body.appendChild(panel);
+      }
+      else if (dir === 'back') closeXMB();
     }
 
-    const injectInterval = setInterval(() => {
-        if (typeof WebGLRenderer !== 'undefined' && document.body) {
-            clearInterval(injectInterval);
-            createDebugPanel();
-            initGpuDebugger();
+    ['cross', 'circle'].forEach(btnId => {
+      const btn = document.getElementById(btnId);
+      btn.addEventListener('pointerdown', (e) => {
+        if (isXMBOpen) {
+          e.stopPropagation();
+          if (btnId === 'cross') navigateXMBMenu('enter');
+          if (btnId === 'circle') navigateXMBMenu('back');
         }
-    }, 100);
-
-    function initGpuDebugger() {
-        console.log("Aetrex Debugger: Ativo");
-
-        WebGLRenderer.prototype._debugStats = {
-            lastTime: performance.now(),
-            drawCalls: 0,
-            vertices: 0,
-            vramUploads: 0,
-            frameAcc: 0
-        };
-
-        const originalFlush = WebGLRenderer.prototype.flushVertexBuffer;
-        WebGLRenderer.prototype.flushVertexBuffer = function(clip) {
-            if (this.vertexBuffer && this.vertexBuffer.index > 0) {
-                this._debugStats.drawCalls++;
-                this._debugStats.vertices += (this.vertexBuffer.index / 4);
-            }
-            return originalFlush.apply(this, arguments);
-        };
-
-        const originalStore = WebGLRenderer.prototype.storeImageInTexture;
-        WebGLRenderer.prototype.storeImageInTexture = function(img) {
-            this._debugStats.vramUploads++;
-            return originalStore.apply(this, arguments);
-        };
-
-        const originalVBlank = WebGLRenderer.prototype.onVBlankBegin;
-        WebGLRenderer.prototype.onVBlankBegin = function() {
-            originalVBlank.apply(this, arguments);
-            
-            const stats = this._debugStats;
-            stats.frameAcc++;
-            
-            const now = performance.now();
-            const elapsed = now - stats.lastTime;
-
-            if (elapsed >= 1000) {
-                const elFps = document.getElementById('debug-fps');
-                const elRFps = document.getElementById('debug-rfps');
-                const elDraws = document.getElementById('debug-draws');
-                const elVerts = document.getElementById('debug-verts');
-                const elStatus = document.getElementById('debug-status');
-
-                const realFps = Math.round((stats.frameAcc * 1000) / elapsed);
-
-                if (elFps) {
-                    elFps.innerText = realFps;
-                    elRFps.innerText = this.fpsRenderCounter || 0;
-                    elDraws.innerText = stats.drawCalls;
-                    elVerts.innerText = Math.floor(stats.vertices);
-
-                    if (stats.vramUploads > 45) {
-                        elStatus.innerText = "[VRAM_LIMIT]";
-                        elStatus.style.color = "#ff3300";
-                    } else if (realFps < 25) {
-                        elStatus.innerText = "[SLOWDOWN]";
-                        elStatus.style.color = "#ffcc00";
-                    } else {
-                        elStatus.innerText = "[STABLE]";
-                        elStatus.style.color = "#00ff95";
-                    }
-                }
-
-                stats.drawCalls = 0;
-                stats.vertices = 0;
-                stats.vramUploads = 0;
-                stats.frameAcc = 0;
-                stats.lastTime = now;
-            }
-        };
-    }
-})();
-
-// Inicialização após carregamento
-window.addEventListener('DOMContentLoaded', () => {
-    // Testar se o Local Game Manager foi carregado
-    setTimeout(() => {
-        if (window.localGameManager) {
-            console.log('✅ Local Game Manager carregado com sucesso!');
-            
-            // Carregar jogos automaticamente
-            if (window.localGameManager.loadInstalledGames) {
-                window.localGameManager.loadInstalledGames();
-            }
-        } else {
-            console.error('❌ Local Game Manager NÃO foi carregado!');
-        }
-    }, 1000);
-});
-
-// Fallback para init se não carregar automaticamente
-if (window.init) {
-    window.addEventListener('load', () => {
-        setTimeout(() => {
-            window.init();
-        }, 100);
+      });
     });
-}
-</script>
 
+    /* ==================== ANALÓGICO ==================== */
+    const analogBase = document.getElementById('analogLeft');
+    const analogThumb = document.getElementById('thumbLeft');
+    let activePointerId = null;
+    let baseRect = null;
+    let currentKeys = { up: false, down: false, left: false, right: false };
+    let xmbCooldown = 0;
+
+    analogBase.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      activePointerId = e.pointerId;
+      analogBase.setPointerCapture(e.pointerId);
+      baseRect = analogBase.getBoundingClientRect();
+      processAnalogInput(e);
+    });
+
+    analogBase.addEventListener('pointermove', (e) => {
+      if (e.pointerId === activePointerId) { e.preventDefault(); processAnalogInput(e); }
+    });
+
+    const stopAnalog = (e) => {
+      if (e.pointerId === activePointerId) {
+        activePointerId = null;
+        analogThumb.style.transform = `translate(0px, 0px)`;
+        dispatchGamepadAnalog(0, 0, { up: false, down: false, left: false, right: false });
+      }
+    };
+    analogBase.addEventListener('pointerup', stopAnalog);
+    analogBase.addEventListener('pointercancel', stopAnalog);
+
+    function processAnalogInput(e) {
+      const centerX = baseRect.left + baseRect.width / 2;
+      const centerY = baseRect.top + baseRect.height / 2;
+      const maxRadius = (baseRect.width / 2) - 10;
+      let deltaX = e.clientX - centerX;
+      let deltaY = e.clientY - centerY;
+      let distance = Math.hypot(deltaX, deltaY);
+      if (distance > maxRadius) { deltaX = (deltaX / distance) * maxRadius; deltaY = (deltaY / distance) * maxRadius; }
+      analogThumb.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+      let normX = deltaX / maxRadius, normY = deltaY / maxRadius;
+      const deadzone = 0.32;
+      let keys = { up: false, down: false, left: false, right: false };
+      if (distance > (maxRadius * deadzone)) {
+        let angle = Math.atan2(normY, normX) * (180 / Math.PI);
+        if (angle < -22.5 && angle > -157.5) keys.up = true;
+        if (angle > 22.5 && angle < 157.5) keys.down = true;
+        if (Math.abs(angle) > 112.5) keys.left = true;
+        if (Math.abs(angle) < 67.5) keys.right = true;
+      }
+      dispatchGamepadAnalog(normX, normY, keys);
+    }
+
+    function dispatchGamepadAnalog(x, y, keys) {
+      if (isXMBOpen) {
+        const now = Date.now();
+        if (now - xmbCooldown > 220) {
+          if (keys.up && !currentKeys.up) { navigateXMBMenu('up'); xmbCooldown = now; }
+          if (keys.down && !currentKeys.down) { navigateXMBMenu('down'); xmbCooldown = now; }
+          if (keys.left && !currentKeys.left) { navigateXMBMenu('left'); xmbCooldown = now; }
+          if (keys.right && !currentKeys.right) { navigateXMBMenu('right'); xmbCooldown = now; }
+        }
+        currentKeys = keys;
+        return;
+      }
+
+      if (window.VirtualGamepad) {
+        if (typeof window.VirtualGamepad.setAnalog === 'function') {
+          window.VirtualGamepad.setAnalog(0, x, y);
+        } else if (typeof window.VirtualGamepad.setAxis === 'function') {
+          window.VirtualGamepad.setAxis(0, x); window.VirtualGamepad.setAxis(1, y);
+        }
+        if (keys.up !== currentKeys.up) keys.up ? window.VirtualGamepad.press('up') : window.VirtualGamepad.release('up');
+        if (keys.down !== currentKeys.down) keys.down ? window.VirtualGamepad.press('down') : window.VirtualGamepad.release('down');
+        if (keys.left !== currentKeys.left) keys.left ? window.VirtualGamepad.press('left') : window.VirtualGamepad.release('left');
+        if (keys.right !== currentKeys.right) keys.right ? window.VirtualGamepad.press('right') : window.VirtualGamepad.release('right');
+      }
+      currentKeys = keys;
+    }
+
+    // Inicializa
+    ThemeManager.init().then(() => {
+      PS3WaveEngine.start();
+    }).catch(err => {
+      console.error('[ThemeManager] init falhou:', err);
+      PS3WaveEngine.start();
+    });
+  </script>
+
+  <!-- MÓDULOS DO EMULADOR PSX -->
+  <script type="text/javascript" src="base64.js"></script>
+  <script type="text/javascript" src="trace.js"></script>
+  <script type="text/javascript" src="utils.js"></script>
+  <script type="text/javascript" src="psx-core/core.js"></script>
+  <script type="text/javascript" src="psx-core/config.js"></script>
+  <script type="text/javascript" src="psx-renderers/webGlHQ.js"></script>
+  <script type="text/javascript" src="psx-core/memory.js"></script>
+  <script type="text/javascript" src="psx-core/enge.js"></script>
+  <script type="text/javascript" src="psx-core/cdrom.js"></script>
+  <script type="text/javascript" src="PSNee.js"></script>
+  <script type="text/javascript" src="psx-core/cd-archive-loader.js"></script>
+  <script type="text/javascript" src="psx-core/recompiler.js"></script>
+  <script type="text/javascript" src="psx-core/directMemoryAccess.js"></script>
+  <script type="text/javascript" src="psx-core/geometryTransformEngine.js"></script>
+  <script type="text/javascript" src="psx-core/graphicsProcessingUnit.js"></script>
+  <script type="text/javascript" src="psx-core/macroBlockDecoder.js"></script>
+  <script type="text/javascript" src="psx-core/mpeg.js"></script>
+  <script type="text/javascript" src="psx-core/serialPorts.js"></script>
+  <script type="text/javascript" src="psx-core/soundProcessingUnit.js"></script>
+  <script type="text/javascript" src="psx-core/rootCounters.js"></script>
+  <script type="text/javascript" src="psx-core/gamepad.js"></script>
+  <script src="psx-core/virtualpad.js"></script>
+  <script src="psx-core/chd.js"></script>
+  <script type="text/javascript" src="index.js"></script>
+  <script type="text/javascript" src="info.js"></script>
+
+  <script type="text/javascript">
+    if (window.settings && typeof window.settings.updateQuality === 'function') {
+      const origQuality = window.settings.updateQuality;
+      window.settings.updateQuality = function(update) {
+        const elem = document.getElementById('quality');
+        if (!elem) return;
+        origQuality(update);
+      };
+    }
+    if (typeof init === 'function') init();
+  </script>
 </body>
 </html>

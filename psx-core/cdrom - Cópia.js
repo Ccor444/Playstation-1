@@ -32,123 +32,15 @@
 
     // ========================================================================
     // Registrador de STATUS (leitura 1F801800h, Index 0)
+    // Espelha m_status_register em cdrom.c
     // ========================================================================
-    const STATUS_INDEX_MASK = 0x03;
-    const STATUS_ADPBUSY    = 0x04;
-    const STATUS_PRMEMPT    = 0x08;
-    const STATUS_PRMWRDY    = 0x10;
-    const STATUS_RSLRRDY    = 0x20;
-    const STATUS_DRQSTS     = 0x40;
-    const STATUS_BUSYSTS    = 0x80;
-
-    // ========================================================================
-    // [PRELOAD] Parser de CUE sheet (PS1 BIN/CUE mínimo, fiel ao padrão)
-    // ------------------------------------------------------------------------
-    // Suporta:
-    //   FILE "nome.bin" BINARY
-    //   TRACK NN MODE1/2352 | MODE2/2352 | MODE2/2336 | AUDIO
-    //     INDEX 00 mm:ss:ff
-    //     INDEX 01 mm:ss:ff
-    // Retorna um array de tracks no formato {id, type, audio, data, begin, end}
-    // onde begin/end estão em setores (75 setores por segundo, LBA base).
-    // ========================================================================
-    function parseCueSheet(cueText) {
-        var lines = cueText.split(/\r?\n/);
-        var tracks = [];
-        var current = null;
-
-        for (var i = 0; i < lines.length; i++) {
-            var line = lines[i].trim();
-            if (!line || line.charAt(0) === ';') continue;
-
-            var fileM = line.match(/^FILE\s+"([^"]+)"\s+(\S+)/i);
-            if (fileM) continue;
-
-            var trackM = line.match(/^TRACK\s+(\d+)\s+(\S+)/i);
-            if (trackM) {
-                if (current) tracks.push(current);
-                var type = trackM[2].toUpperCase();
-                current = {
-                    id:    parseInt(trackM[1], 10),
-                    type:  type,
-                    audio: /^AUDIO/.test(type),
-                    data:  /MODE/.test(type),
-                    mode:  type.indexOf('MODE2') === 0 ? 2 : (type.indexOf('MODE1') === 0 ? 1 : 0),
-                    sectorSize: type.indexOf('2352') > 0 ? 2352 :
-                                (type.indexOf('2336') > 0 ? 2336 :
-                                (type.indexOf('2048') > 0 ? 2048 : 2352)),
-                    begin: -1,
-                    end: -1,
-                    index00: -1
-                };
-                continue;
-            }
-
-            var idxM = line.match(/^INDEX\s+(\d+)\s+(\d+):(\d+):(\d+)/i);
-            if (idxM && current) {
-                var idx = parseInt(idxM[1], 10);
-                var mm  = parseInt(idxM[2], 10);
-                var ss  = parseInt(idxM[3], 10);
-                var ff  = parseInt(idxM[4], 10);
-                var sector = (mm * 60 + ss) * 75 + ff;
-                if (idx === 0) current.index00 = sector;
-                if (idx === 1) current.begin = sector;
-            }
-        }
-        if (current) tracks.push(current);
-
-        // Normaliza begin/end
-        for (var j = 0; j < tracks.length; j++) {
-            if (tracks[j].begin < 0) tracks[j].begin = 0;
-            if (j < tracks.length - 1) {
-                tracks[j].end = tracks[j + 1].begin;
-            } else {
-                tracks[j].end = Infinity;
-            }
-        }
-        return tracks;
-    }
-
-    // ========================================================================
-    // [PRELOAD] fetch com progresso (streaming, sem alocar o dobro)
-    // ========================================================================
-    async function fetchWithProgress(url, onProgress) {
-        var response = await fetch(url);
-        if (!response.ok) {
-            throw new Error('[cdloader] HTTP ' + response.status + ' em ' + url);
-        }
-
-        var total = parseInt(response.headers.get('Content-Length') || '0', 10);
-        if (!response.body || !response.body.getReader) {
-            var ab = await response.arrayBuffer();
-            if (onProgress) onProgress(1.0, ab.byteLength, ab.byteLength);
-            return new Uint8Array(ab);
-        }
-
-        var reader = response.body.getReader();
-        var chunks = [];
-        var received = 0;
-
-        while (true) {
-            var r = await reader.read();
-            if (r.done) break;
-            chunks.push(r.value);
-            received += r.value.length;
-            if (onProgress) {
-                var p = total > 0 ? (received / total) : 0;
-                onProgress(p, received, total);
-            }
-        }
-
-        var out = new Uint8Array(received);
-        var off = 0;
-        for (var i = 0; i < chunks.length; i++) {
-            out.set(chunks[i], off);
-            off += chunks[i].length;
-        }
-        if (onProgress) onProgress(1.0, received, received);
-        return out;
-    }
+    const STATUS_INDEX_MASK = 0x03; // bit 0-1: Index
+    const STATUS_ADPBUSY    = 0x04; // bit 2: XA-ADPCM FIFO ocupado
+    const STATUS_PRMEMPT    = 0x08; // bit 3: Parameter FIFO vazia
+    const STATUS_PRMWRDY    = 0x10; // bit 4: Parameter FIFO com espaço
+    const STATUS_RSLRRDY    = 0x20; // bit 5: Response FIFO não vazia
+    const STATUS_DRQSTS     = 0x40; // bit 6: Data FIFO não vazia
+    const STATUS_BUSYSTS    = 0x80; // bit 7: transmissão de comando ocupada
 
     // ========================================================================
     // Objeto principal do CDROM
@@ -159,23 +51,24 @@
         currLoc: 0,
         filter: {},
         hasCdFile: false,
-        dataOffset: 0,
+        dataOffset: 0, // [VCD SUPPORT] offset para pular headers (ex: 1MB do POPSTARTER VCD)
         irq: 0,
         irqEnable: 0xff,
         mode: 0,
         ncmdctrl: 0,
         ncmdread: 0,
-        params: new Array(16),
+        params: new Array(16),   // Parameter FIFO (parameter_fifo.c)
         pcm: new Float32Array(8064 * 44100 / 18900),
         pcmidx: 0,
         pcmmax: 0,
-        results: new Array(16),
+        results: new Array(16),  // Response FIFO (response_fifo.c)
         sectorEnd: 0,
         sectorIndex: 0,
         sectorOffset: 0,
         sectorSize: 0,
         seekLoc: 0,
         currTrack: {},
+        // Power-on: Parameter FIFO vazia + com espaço (espelha m_cdrom_setup)
         status: (STATUS_PRMEMPT | STATUS_PRMWRDY),
         statusCode: 0x00,
         xa: new Float32Array(8064),
@@ -194,104 +87,17 @@
         },
         mute: false,
         adpcmMute: false,
-        region: 'A',
+        region: 'A', // 'A'=América(NTSC), 'E'=Europa(PAL), 'I'=Japão(NTSC)
 
         // ====================================================================
-        // [PRELOAD] Flags de prontidão da imagem
-        // ====================================================================
-        imageReady: false,
-        imageBytes: 0,
-        imageTracks: 0,
-
-        // ====================================================================
-        // [PRELOAD] Carrega .bin + .cue ANTES do BIOS boot
-        // ====================================================================
-        preloadFromURL: async function (binUrl, cueUrl, onProgress) {
-            if (this.imageReady) {
-                if (onProgress) onProgress(1.0, this.imageBytes, this.imageBytes);
-                return true;
-            }
-
-            function report(p, msg) {
-                if (onProgress) try { onProgress(p, msg); } catch (e) {}
-            }
-
-            // ------------------------------------------------------------------
-            // 1) .cue (se existir) — carrega primeiro, é pequeno (~1 KB)
-            // ------------------------------------------------------------------
-            var tracks = null;
-            if (cueUrl) {
-                report(0.00, 'cd: carregando cue');
-                try {
-                    var cueResp = await fetch(cueUrl);
-                    if (cueResp.ok) {
-                        var cueText = await cueResp.text();
-                        tracks = parseCueSheet(cueText);
-                        console.log('[cdloader] cue parseado:', tracks.length, 'tracks');
-                    } else {
-                        console.warn('[cdloader] cue indisponível (HTTP ' + cueResp.status + '), usando track única');
-                    }
-                } catch (e) {
-                    console.warn('[cdloader] erro lendo cue:', e.message);
-                }
-            }
-
-            // ------------------------------------------------------------------
-            // 2) .bin — o grosso da carga (200-800 MB)
-            // ------------------------------------------------------------------
-            report(0.02, 'cd: baixando imagem');
-            var binData = await fetchWithProgress(binUrl, function (p, rec, tot) {
-                report(0.02 + p * 0.96, 'cd: ' + Math.floor(rec / 1048576) + ' / ' +
-                    (tot ? Math.floor(tot / 1048576) : '?') + ' MB');
-            });
-
-            // ------------------------------------------------------------------
-            // 3) TOC — se não veio cue, sintetiza uma track MODE2/2352
-            // ------------------------------------------------------------------
-            var totalSectors = Math.floor(binData.length / 2352);
-            if (!tracks || tracks.length === 0) {
-                tracks = [{
-                    id: 1,
-                    type: 'MODE2/2352',
-                    audio: false,
-                    data: true,
-                    mode: 2,
-                    sectorSize: 2352,
-                    begin: 0,
-                    end: totalSectors,
-                    index00: -1
-                }];
-                console.log('[cdloader] sem cue — track única sintetizada:', totalSectors, 'setores');
-            } else {
-                tracks[tracks.length - 1].end = totalSectors;
-            }
-
-            report(0.98, 'cd: registrando TOC');
-
-            // ------------------------------------------------------------------
-            // 4) Registra no CDROM — setCdImage marca imageReady internamente
-            // ------------------------------------------------------------------
-            this.setTOC(tracks);
-            this.setCdImage(binData, 0);
-
-            console.log('[cdloader] pronto:', {
-                bytes: binData.length,
-                sectors: totalSectors,
-                tracks: tracks.length,
-                durationSec: (totalSectors / 75).toFixed(1)
-            });
-
-            report(1.0, 'cd: pronto (' + (totalSectors / 75 / 60).toFixed(1) + ' min)');
-            return true;
-        },
-
-        // ====================================================================
-        // FIFO de Parâmetros
+        // FIFO de Parâmetros — espelha parameter_fifo.c
         // ====================================================================
         paramPush: function (p) {
             if (cdr.params.length < 16) {
                 cdr.params.push(p);
+                // FIFO deixou de estar vazia
                 cdr.status &= ~STATUS_PRMEMPT;
+                // PRMWRDY = 1 enquanto houver espaço (< 16)
                 if (cdr.params.length >= 16) {
                     cdr.status &= ~STATUS_PRMWRDY;
                 } else {
@@ -304,16 +110,17 @@
 
         resetparams: function () {
             cdr.params.length = 0;
-            cdr.status |= STATUS_PRMEMPT;
-            cdr.status |= STATUS_PRMWRDY;
+            cdr.status |= STATUS_PRMEMPT;  // vazia
+            cdr.status |= STATUS_PRMWRDY;  // com espaço
         },
 
         // ====================================================================
-        // FIFO de Respostas
+        // FIFO de Respostas — espelha response_fifo.c
         // ====================================================================
         responsePush: function (byte) {
             if (cdr.results.length < 16) {
                 cdr.results.push(byte & 0xff);
+                // Bufferizamos uma resposta -> FIFO não vazia (RSLRRDY = 1)
                 cdr.status |= STATUS_RSLRRDY;
             } else {
                 console.warn('[CDROM] responsePush: FIFO de respostas estourou (16), abortando push');
@@ -323,8 +130,9 @@
         responsePop: function () {
             var r = 0;
             if (cdr.results.length > 0) {
-                r = cdr.results.shift();
+                r = cdr.results.shift(); // FIFO real (frente), mais fiel que o pop LIFO do C
                 if (cdr.results.length === 0) {
+                    // Última resposta retirada -> FIFO vazia (RSLRRDY = 0)
                     cdr.status &= ~STATUS_RSLRRDY;
                 }
             } else {
@@ -334,7 +142,7 @@
         },
 
         // ====================================================================
-        // Reset / power-on
+        // Reset / power-on — espelha m_cdrom_setup() em cdrom.c
         // ====================================================================
         resetState: function () {
             cdr.status = (STATUS_PRMEMPT | STATUS_PRMWRDY);
@@ -350,22 +158,25 @@
         },
 
         // ====================================================================
-        // STAT byte
+        // STAT byte — espelha get_stat() em cdrom.c
         // ====================================================================
         getStat: function () {
+            // Motor tratado como sempre ligado; flags Read/Seek/Play refletidas
             return (cdr.statusCode | STAT_MOTORON) & 0xff;
         },
 
         // ====================================================================
-        // Registradores
+        // Registradores (espelham m_cdrom_read / m_cdrom_write em cdrom.c)
         // ====================================================================
         rd08r1800: function () {
             return cdr.status;
         },
 
         rd08r1801: function () {
+            // Index 1: Response FIFO (m_cdrom_read case 1)
             if (((cdr.status & STATUS_INDEX_MASK) === 0x01) && (cdr.status & STATUS_RSLRRDY)) {
                 if (cdr.results.length === 1) {
+                    // Ao esvaziar, também limpa DRQSTS (comportamento original)
                     cdr.status &= ~STATUS_DRQSTS;
                 }
                 return cdr.responsePop();
@@ -402,7 +213,7 @@
 
         wr08r1802: function (data) {
             switch (cdr.status & STATUS_INDEX_MASK) {
-                case 0: cdr.paramPush(data); break;
+                case 0: cdr.paramPush(data); break;              // parameter_fifo.c
                 case 1: cdr.irqEnable = data; break;
                 case 2: cdr.config.volCdLeft2SpuLeft = ((data & 0xff) >>> 0) / 0x80; break;
                 case 3: cdr.config.volCdRight2SpuLeft = ((data & 0xff) >>> 0) / 0x80; break;
@@ -439,20 +250,32 @@
             }
         },
 
+        // ====================================================================
+        // [HLE] CD Seek Timing
+        // ====================================================================
+        // A implementação original simulava a latência mecânica do pickup real
+        // de um CD (curva MIN_MS..MAX_MS escalada por sqrt(distância)).
+        //
+        // Nenhum software de PS1 consegue observar essa curva — o que o jogo
+        // vê é: "emiti um seek, depois recebi um INT3(seek-complete)". O número
+        // exato de ciclos entre esses dois pontos não faz parte do contrato;
+        // é só quanto tempo o emulador decidiu gastar.
+        //
+        // Emitir uma latência fixa curta elimina o sqrt e a matemática de
+        // float por chamada, e também corresponde ao comportamento de "um
+        // drive de CD mais rápido", que todo jogo já tolera porque drives
+        // reais de PS1 variavam bastante em velocidade de seek.
+        //
+        // 0x4000 ciclos ≈ 0.3ms de tempo PSX.
         estimateSeekCycles: function (distanceSectors) {
-            const distance = Math.abs(distanceSectors);
-            if (distance === 0) return 0x1000;
-            const MIN_MS = 30;
-            const MAX_MS = 1000;
-            const MAX_DIST = 270000;
-            const ms = MIN_MS + (MAX_MS - MIN_MS) * Math.sqrt(Math.min(distance, MAX_DIST) / MAX_DIST);
-            return Math.max(0x1000, Math.round(ms * (PSX_SPEED / 1000))) >>> 0;
+            return 0x4000;
         },
 
         acknowledgeInterrupt: function (data) {
             cdr.irq &= ~(data & (0x1F & cdr.irqEnable));
         },
 
+        // Atualiza statusCode garantindo que Play/Seek/Read sejam mutuamente exclusivos
         setStat: function (setBits, clearBits) {
             clearBits = clearBits || 0;
             if (setBits & (STAT_PLAY | STAT_SEEK | STAT_READ)) {
@@ -463,7 +286,7 @@
         },
 
         // ====================================================================
-        // Dispatch de comandos
+        // Dispatch de comandos (espelha m_cdrom_exec_cmd em cdrom.c)
         // ====================================================================
         command: function (data) {
             let nevtctrl = 0x0200;
@@ -473,44 +296,48 @@
             cdr.status |= STATUS_BUSYSTS;
             cdr.ncmdctrl = data;
             switch (data) {
-                case 0x01: nevtctrl = 0xc4e1; break;
-                case 0x03:
-                case 0x0b:
-                case 0x0c:
-                case 0x0d:
-                case 0x0e:
-                case 0x0f:
-                case 0x10:
-                case 0x11:
-                case 0x13:
-                case 0x14:
-                case 0x19:
-                case 0x1a:
-                case 0x1e:
+                case 0x01:  //- CdlNop
+                    nevtctrl = 0xc4e1;
                     break;
-                case 0x04:
-                case 0x05:
+                case 0x03:  //- CdlPlay
+                case 0x0b:  //- CdlMute
+                case 0x0c:  //- CdlDemute
+                case 0x0d:  //- CdlSetFilter
+                case 0x0e:  //- CdlSetmode
+                case 0x0f:  //- CdlGetparam
+                case 0x10:  //- CdlGetLocL
+                case 0x11:  //- CdlGetLocP
+                case 0x13:  //- CdlGetTN
+                case 0x14:  //- CdlGetTD
+                case 0x19:  //- CdlTest
+                case 0x1a:  //- CdlID
+                case 0x1e:  //- CdlReadTOC
                     break;
-                case 0x0a:
+                case 0x04:  //- CdlForward
+                case 0x05:  //- CdlBackward
+                    break;
+                case 0x0a:  //- CdlInit
                     nevtctrl = 0x13cce;
-                case 0x02:
-                case 0x06:
-                case 0x07:
-                case 0x08:
-                case 0x12:
-                case 0x15:
-                case 0x16:
-                case 0x1B:
+                    // fallthrough intencional: Init também interrompe leitura
+                case 0x02:  //- CdlSetloc
+                case 0x06:  //- CdlReadN
+                case 0x07:  //- CdlStandby
+                case 0x08:  //- CdlStop
+                case 0x12:  //- CdlSetsession
+                case 0x15:  //- CdlSeekL
+                case 0x16:  //- CdlSeekP
+                case 0x1B:  //- CdlReadS
                     cdr.stopReading();
                     break;
-                case 0x09:
+                case 0x09:  //- CdlPause
                     cdr.stopReading();
                     break;
-                case 0x99:
+                case 0x99:  //- CdlPause (auto)
                     break;
-                case 0x1c:
+                case 0x1c:  //- CdlReset
                     break;
                 default:
+                    // Comandos inválidos: hardware real dispara INT5(11h,40h)
                     cdr.ncmdctrl = 0;
                     cdr.statusCode |= STAT_ERROR;
                     cdr.responsePush(cdr.statusCode);
@@ -530,12 +357,17 @@
             }
         },
 
+        // ====================================================================
+        // Enfileira resposta (agora FIFO plana de bytes — corrige bug do push
+        // de array e espelha response_fifo.c)
+        // ====================================================================
         enqueueEvent: function (irq, ...params) {
             if (this.results.length) abort('not yet read all results');
             for (var i = 0; i < params.length; i++) {
                 cdr.responsePush(params[i]);
             }
             cdr.status &= ~STATUS_BUSYSTS;
+            // RSLRRDY já foi setado por responsePush
             cdr.setIrq(irq);
         },
 
@@ -572,8 +404,8 @@
                     cdr.ncmdread = 0x03;
                     this.enqueueEvent(3, cdr.setStat(STAT_PLAY | STAT_MOTORON));
                     break;
-                case 0x04:
-                case 0x05:
+                case 0x04: // Forward
+                case 0x05: // Backward
                     if (!(cdr.statusCode & STAT_PLAY)) {
                         cdr.statusCode |= STAT_ERROR;
                         this.enqueueEvent(5, cdr.statusCode, 0x80);
@@ -814,7 +646,7 @@
                 case 0x120:
                     this.enqueueEvent(2, cdr.setStat(STAT_MOTORON, STAT_PLAY | STAT_SEEK | STAT_READ));
                     break;
-                case 0x1C:
+                case 0x1C: // Reset — reinicia o HC05 (espelha m_cdrom_setup)
                     this.enqueueEvent(3, cdr.statusCode);
                     cdr.mode = 0;
                     cdr.filter = {};
@@ -898,8 +730,8 @@
                         cdr.currLoc++;
                         break;
                     }
-                case 0x04:
-                case 0x05: {
+                case 0x04: // Forward
+                case 0x05: { // Backward
                     const FFWD_STEP = 8;
                     cdr.currLoc += (cdr.ncmdread === 0x04) ? FFWD_STEP : -FFWD_STEP;
                     if (cdr.currLoc <= cdr.tracks[1].begin + 150) {
@@ -943,6 +775,7 @@
                     cdr.currLoc++;
                     break;
                 case 0x00:
+                    // Estado ocioso antes do primeiro Play/ReadN/ReadS
                     psx.unsetEvent(this.eventRead);
                     break;
                 default:
@@ -952,23 +785,12 @@
         },
 
         readSector: function (readLoc) {
-            // [PRELOAD] Se o CD ainda não foi registrado, não há setor para
-            // ler. Acontece se o BIOS bootar antes do loader terminar — o
-            // chamador deve garantir setCdImage() antes de psx.run(), mas
-            // esta guarda evita corromper VRAM com lixo caso aconteça.
-            if (!cdr.imageReady || cdr.cdImage === undefined) {
-                console.warn('[cdrom] readSector chamado antes do preload — ignorando', readLoc);
-                return;
-            }
-
+            if (cdr.cdImage === undefined) return;
             for (let i = 1; i < cdr.tracks.length; ++i) {
                 let track = cdr.currTrack = cdr.tracks[i];
                 if ((track.begin < readLoc) && (readLoc < track.end)) break;
             }
-            if (!cdr.currTrack || cdr.currTrack.begin === undefined) {
-                cdr.currTrack = cdr.tracks[0];
-            }
-
+            // [VCD SUPPORT] aplica dataOffset para pular headers
             cdr.sectorOffset = cdr.dataOffset + (readLoc - 150) * 2352;
             switch (cdr.mode & 0x30) {
                 case 0x00: cdr.sectorIndex = 24; cdr.sectorSize = 2048; break;
@@ -1172,62 +994,15 @@
             this.tracks = tracks;
         },
 
-        // ====================================================================
-        // [PRELOAD FIX] setCdImage — o sinal REAL de prontidão
-        // --------------------------------------------------------------------
-        // Quem chama este método está dizendo "a imagem está aqui, pode ler
-        // setores". O flag imageReady é marcado AQUI, não em preloadFromURL,
-        // para que loaders próprios do app (que chamam setCdImage direto)
-        // também destravem o readSector.
-        // ====================================================================
+        // [VCD SUPPORT] recebe offset opcional para pular headers no início do buffer
         setCdImage: function (data, offset = 0) {
-            var buffer;
-            if (data instanceof ArrayBuffer) {
-                buffer = data;
-            } else if (data.buffer instanceof ArrayBuffer) {
-                if (data.byteOffset === 0 && data.byteLength === data.buffer.byteLength) {
-                    buffer = data.buffer;
-                } else {
-                    buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-                }
-            } else {
-                throw new Error('[cdrom] setCdImage: tipo inválido — espera ArrayBuffer ou TypedArray');
-            }
-            sectorData32 = new Int32Array(buffer);
-            sectorData16 = new Int16Array(buffer);
-            sectorData8  = new Int8Array(buffer);
+            sectorData32 = new Int32Array(data.buffer);
+            sectorData16 = new Int16Array(data.buffer);
+            sectorData8 = new Int8Array(data.buffer);
             cdr.hasCdFile = true;
-            cdr.cdImage = new Uint32Array(buffer);
+            cdr.cdImage = data;
             cdr.dataOffset = offset || 0;
-
-            // [FIX] Marca prontidão aqui — este é o ponto onde a imagem
-            // realmente passa a existir na memória do emulador.
-            cdr.imageReady = true;
-            cdr.imageBytes = buffer.byteLength;
-
-            // Sintetiza TOC padrão se o app não forneceu nenhum via setTOC()
-            if (!cdr.tracks || cdr.tracks.length === 0) {
-                var totalSectors = Math.floor(buffer.byteLength / 2352);
-                cdr.tracks = [{
-                    id: 1,
-                    type: 'MODE2/2352',
-                    audio: false,
-                    data: true,
-                    mode: 2,
-                    sectorSize: 2352,
-                    begin: 0,
-                    end: totalSectors,
-                    index00: -1
-                }];
-                cdr.imageTracks = 1;
-                console.log('[cdrom] setCdImage: TOC sintetizado,', totalSectors, 'setores');
-            } else {
-                cdr.imageTracks = cdr.tracks.length;
-            }
-        },
-
-        // [PRELOAD] expõe o parser de CUE para o app hospedeiro
-        parseCueSheet: parseCueSheet
+        }
     };
 
     scope.cdr = Object.seal(cdr);

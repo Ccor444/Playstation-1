@@ -2,19 +2,6 @@
 
 	'use strict';
 
-	// ==========================================================================
-	// SUPORTE MOBILE (aditivo) — reaproveita o RecompilerConfig.mobileMode do
-	// recompiler.js quando presente, lido em tempo de execução (não no load,
-	// já que a ordem de carregamento entre os dois arquivos pode variar).
-	// Este módulo é matemática escalar pura (sem geração de código, sem
-	// alocação), então NÃO recebe o mesmo tipo de otimização do recompiler —
-	// o único ganho real e seguro aqui é evitar releituras redundantes de
-	// registradores de controle em comandos que processam 3 vértices de uma
-	// vez (RTPT). Nenhuma flag de overflow ou precisão é alterada.
-	function isMobileMode() {
-		return (typeof scope.RecompilerConfig !== 'undefined') && !!scope.RecompilerConfig.mobileMode;
-	}
-
 	const v0 = new Int32Array(4);
 	const v1 = new Int32Array(4);
 	const v2 = new Int32Array(4);
@@ -622,75 +609,6 @@
 			ir[0] = this.lim(ir[0], 0.0, 12, 4096.0, 12);
 		},
 
-		// MOBILE: equivalente aditivo de "this.rtps(v0); this.rtps(v1); this.rtps(v2);"
-		// para o comando RTPT (0x30) — o comando de 3 vértices mais quente (roda uma
-		// vez por triângulo em toda cena 3D). Os registradores de controle (H, OFX,
-		// OFY, DQA, DQB) e o fator SF não mudam entre os 3 vértices de um mesmo
-		// RTPT, então são lidos/calculados uma única vez em vez de 3x. Matemática
-		// e flags idênticas à versão original — nenhuma precisão é sacrificada.
-		rtpt: function () {
-			const h = regs[0x3a] & 0xffff;
-			const ofx = regs[0x38];
-			const ofy = regs[0x39];
-			const dqa = regs[0x3b];
-			const dqb = regs[0x3c];
-			const sx = this.sx;
-			const sy = this.sy;
-			const sz = this.sz;
-			const sf = this.sf ? 4096.0 : 1.0;
-			const zsf = this.sf ? 1.0 : 4096.0;
-			const lm = this.lm;
-			const verts = [v0, v1, v2];
-
-			for (let i = 0; i < 3; ++i) {
-				const vec = verts[i];
-
-				mac[1] = ((tr[0] * 4096.0) + (rt[0] * vec[1]) + (rt[1] * vec[2]) + (rt[2] * vec[3])) / sf;
-				if (mac[1] > 8796093022207) regs[0x3f] |= flag[30];
-				if (mac[1] < -8796093022208) regs[0x3f] |= flag[27];
-				mac[2] = ((tr[1] * 4096.0) + (rt[3] * vec[1]) + (rt[4] * vec[2]) + (rt[5] * vec[3])) / sf;
-				if (mac[2] > 8796093022207) regs[0x3f] |= flag[29];
-				if (mac[2] < -8796093022208) regs[0x3f] |= flag[26];
-				mac[3] = ((tr[2] * 4096.0) + (rt[6] * vec[1]) + (rt[7] * vec[2]) + (rt[8] * vec[3])) / sf;
-				if (mac[3] > 8796093022207) regs[0x3f] |= flag[28];
-				if (mac[3] < -8796093022208) regs[0x3f] |= flag[25];
-
-				this.limit(lm);
-
-				sx[0] = sx[1];
-				sx[1] = sx[2];
-
-				sy[0] = sy[1];
-				sy[1] = sy[2];
-
-				sz[0] = sz[1];
-				sz[1] = sz[2];
-				sz[2] = sz[3];
-				let zs3 = mac[3] / zsf;
-				sz[3] = this.lim(zs3, 0.0, 18, 65535.0, 18);
-
-				let hsz3 = 131072.0;
-				hsz3 = ((h * 131072.0 / sz[3]) + 1.0) / 2.0;
-				if (hsz3 > 131071.0) {
-					regs[0x3f] |= flag[17];
-					hsz3 = 131071.0;
-				}
-				mac[0] = (hsz3 * ir[1]) + ofx; sx[2] = mac[0] / 65536.0;
-				if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-				if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
-				mac[0] = (hsz3 * ir[2]) + ofy; sy[2] = mac[0] / 65536.0;
-				if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-				if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
-				mac[0] = (hsz3 * dqa) + dqb; ir[0] = mac[0] / 4096.0;
-				if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-				if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
-
-				sx[2] = this.lim(sx[2], -1024.0, 14, 1023.0, 14);
-				sy[2] = this.lim(sy[2], -1024.0, 13, 1023.0, 13);
-				ir[0] = this.lim(ir[0], 0.0, 12, 4096.0, 12);
-			}
-		},
-
 		sqr: function () {
 			const sf = this.sf ? 4096.0 : 1.0;
 
@@ -728,7 +646,7 @@
 				case 0x2a: this.dpcs(rgb[0]); this.dpcs(rgb[0]); this.dpcs(rgb[0]); break;
 				case 0x2d: this.avsz3(); break;
 				case 0x2e: this.avsz4(); break;
-				case 0x30: if (isMobileMode()) { this.rtpt(); } else { this.rtps(v0); this.rtps(v1); this.rtps(v2); } break;
+				case 0x30: this.rtps(v0); this.rtps(v1); this.rtps(v2); break;
 				case 0x3d: this.gpf(); break;
 				case 0x3e: this.gpl(); break;
 				case 0x3f: this.nccs(v0); this.nccs(v1); this.nccs(v2); break;

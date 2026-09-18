@@ -2,6 +2,10 @@
 
 	'use strict';
 
+	function isMobileMode() {
+		return (typeof scope.RecompilerConfig !== 'undefined') && !!scope.RecompilerConfig.mobileMode;
+	}
+
 	var packetSizes = [
 		0x01, 0x01, 0x03, 0x01, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -62,6 +66,7 @@
 		frame: 0,
 		internalFrame: 0,
 		updated: false,
+		_lastTexPageStatus: NaN,
 
 		cyclesToDotClock: function (cycles) {
 			switch ((gpu.status >> 16) & 7) {
@@ -118,7 +123,7 @@
 				}
 			}
 			else {
-				const oddLine = gpu.hline + (gpu.frame & 1); // toggle even/odd on every frame
+				const oddLine = gpu.hline + (gpu.frame & 1);
 				if ((oddLine & 1) === 1) {
 					gpu.status |= 0x80000000;
 				}
@@ -133,7 +138,6 @@
 				renderer.onVBlankEnd();
 			}
 			if ((gpu.hline >= vblankbegin) || (gpu.hline < vblankend)) {
-				// always even during vlbank.
 				gpu.status &= 0x7fffffff;
 			}
 			if (++gpu.hline >= vsync) {
@@ -148,8 +152,17 @@
 		},
 
 		rd32r1810: function () {
-			if (gpu.rR1814 & 0x08000000) {
-				abort('gpu.rd32r1810 not implemented');
+			if (gpu.status & 0x08000000) {
+				const lo = gpu.img.buffer[gpu.img.index++] & 0xffff;
+				let hi = 0;
+				if (--gpu.transferTotal > 0) {
+					hi = gpu.img.buffer[gpu.img.index++] & 0xffff;
+					if (--gpu.transferTotal <= 0) gpu.status &= ~0x08000000;
+				}
+				else {
+					gpu.status &= ~0x08000000;
+				}
+				return ((hi << 16) | lo) >>> 0;
 			}
 			return gpu.result;
 		},
@@ -221,18 +234,22 @@
 							break;
 					}
 					break;
-				case 0x40: break; // ???
+				case 0x40: break;
 				default: console.warn('gpu.cmnd' + hex(data >>> 24, 2));
 			}
 			gpu.updateTexturePage();
 		},
 
 		invalidPacketHandler: function (data) {
-			// abort('gpu.' + gpu.getPacketHandlerName(data));
 		},
 
 		updateTexturePage: function (bitfield) {
 			if (bitfield !== undefined) gpu.status = (gpu.status & ~0x9FF) | (bitfield & 0x9FF);
+
+			if (isMobileMode()) {
+				if (gpu.status === gpu._lastTexPageStatus) return;
+				gpu._lastTexPageStatus = gpu.status;
+			}
 
 			gpu.tx = ((gpu.status >>> 0) & 15) << 6;
 			gpu.ty = ((gpu.status >>> 4) & 1) << 8;
@@ -246,153 +263,124 @@
 		},
 
 		handlePacket00: function (data) {
-			// intentionally left blank
 		},
 
-		// Clear Cache
 		handlePacket01: function (data) {
 			gpu.status = (gpu.status | 0x10000000) & ~0x08000000;
 		},
 
-		// Framebuffer Rectangle draw
 		handlePacket02: function (data) {
 			renderer.fillRectangle(data);
 		},
 
 		handlePacket03: function (data) {
-			// intentionally left blank
 		},
 		handlePacket04: function (data) {
-			// intentionally left blank
 		},
 		handlePacket05: function (data) {
-			// intentionally left blank
 		},
 		handlePacket08: function (data) {
-			// intentionally left blank
 		},
 		handlePacket09: function (data) {
-			// intentionally left blank
 		},
 
 		handlePacket0D: function (data) {
-			// intentionally left blank
 		},
 
-		// Monochrome 3 point polygon
 		handlePacket20: function (data) {
 			renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
 		},
 
-		// Textured 3 point polygon
 		handlePacket24: function (data) {
 			gpu.updateTexturePage(data[4] >>> 16);
 			renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
 		},
 
-		// Monochrome 4 point polygon
 		handlePacket28: function (data) {
 			renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
 			renderer.drawTriangle(data, 0, 2, 0, 3, 0, 4);
 		},
 
-		// Textured 4 point polygon
 		handlePacket2C: function (data) {
 			gpu.updateTexturePage(data[4] >>> 16);
 			renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
 			renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
 		},
 
-		// Gradated 3 point polygon
 		handlePacket30: function (data) {
 			renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
 		},
 
-		// Gradated textured 3 point polygon
 		handlePacket34: function (data) {
 			gpu.updateTexturePage(data[5] >>> 16);
 			renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
 		},
 
-		// Gradated 4 point polygon
 		handlePacket38: function (data) {
 			renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
 			renderer.drawTriangle(data, 2, 3, 4, 5, 6, 7);
 		},
 
-		// Gradated textured 4 point polygon
 		handlePacket3C: function (data) {
 			gpu.updateTexturePage(data[5] >>> 16);
 			renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
 			renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
 		},
 
-		// Monochrome line
 		handlePacket40: function (data) {
 			renderer.drawLine(data, 0, 1, 0, 2);
 		},
 
-		// Monochrome polyline
 		handlePacket48: function (data, size) {
 			for (var i = 2; i < size; i += 1) {
 				renderer.drawLine(data, 0, i - 1, 0, i);
 			}
 		},
 
-		// Gradated line
 		handlePacket50: function (data) {
 			renderer.drawLine(data, 0, 1, 2, 3);
 		},
 
-		// Gradated polyline
 		handlePacket58: function (data, size) {
 			for (var i = 3; i < size; i += 2) {
 				renderer.drawLine(data, i - 3, i - 2, i - 1, i);
 			}
 		},
 
-		// Rectangle
 		handlePacket60: function (data) {
 			renderer.drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
 		},
 
-		// Sprite
 		handlePacket64: function (data) {
 			var tx = (data[2] >>> 0) & 255;
 			var ty = (data[2] >>> 8) & 255;
 			renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
 		},
 
-		// Dot
 		handlePacket68: function (data) {
 			renderer.drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
 		},
 
-		// 8*8 rectangle
 		handlePacket70: function (data) {
 			renderer.drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
 		},
 
-		// 8*8 sprite
 		handlePacket74: function (data) {
 			var tx = (data[2] >>> 0) & 255;
 			var ty = (data[2] >>> 8) & 255;
 			renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
 		},
 
-		// 16*16 rectangle
 		handlePacket78: function (data) {
 			renderer.drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
 		},
 
-		// 16*16 sprite
 		handlePacket7C: function (data) {
 			var tx = (data[2] >>> 0) & 255;
 			var ty = (data[2] >>> 8) & 255;
 			renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
 		},
 
-		// Move image in framebuffer
 		handlePacket80: function (data) {
 			if (data[1] !== data[2]) {
 				var sx = (data[1] >> 0);
@@ -411,7 +399,6 @@
 			}
 		},
 
-		// Send image to frame buffer
 		handlePacketA0: function (data) {
 			gpu.status &= ~0x10000000;
 			var x = ((data[1] << 16) >>> 16);
@@ -428,7 +415,6 @@
 			gpu.img.pixelCount = gpu.transferTotal;
 		},
 
-		// Copy image from frame buffer
 		handlePacketC0: function (data) {
 			gpu.status |= 0x08000000;
 			var x = ((data[1] << 16) >>> 16);
@@ -447,7 +433,6 @@
 			renderer.loadImage(gpu.img.x, gpu.img.y, gpu.img.w, gpu.img.h, gpu.img.buffer);
 		},
 
-		// Draw mode setting
 		handlePacketE1: function (data) {
 			gpu.status = (gpu.status & 0xfffff800) | (data[0] & 0x7ff);
 			gpu.txflip = (data[0] >>> 12) & 1;
@@ -455,7 +440,6 @@
 			gpu.updateTexturePage();
 		},
 
-		// Texture window setting
 		handlePacketE2: function (data) {
 			gpu.info[2] = data[0] & 0x000fffff;
 
@@ -467,7 +451,6 @@
 			gpu.twin = (maskx << 0) + (masky << 8) + (offsx << 16) + (offsy << 24);
 
 		},
-		// Set drawing area top left
 		handlePacketE3: function (data) {
 			gpu.info[3] = data[0] & 0x000fffff;
 			gpu.drawAreaX1 = (data[0] << 22) >>> 22;
@@ -476,7 +459,6 @@
 			renderer.setDrawAreaTL(gpu.drawAreaX1, gpu.drawAreaY1);
 		},
 
-		// Set drawing area bottom right
 		handlePacketE4: function (data) {
 			gpu.info[4] = data[0] & 0x000fffff;
 
@@ -486,7 +468,6 @@
 			renderer.setDrawAreaBR(gpu.drawAreaX2, gpu.drawAreaY2);
 		},
 
-		// Drawing offset
 		handlePacketE5: function (data) {
 			gpu.info[5] = data[0] & 0x003fffff;
 
@@ -496,7 +477,6 @@
 			renderer.setDrawAreaOF(gpu.drawOffsetX, gpu.drawOffsetY);
 		},
 
-		// Mask setting
 		handlePacketE6: function (data) {
 			gpu.status &= 0xffffe7ff;
 			gpu.status |= ((data[0] & 3) << 11);
@@ -507,18 +487,41 @@
 			gpu.status |= 0x10000000;
 		},
 
+		// ====================================================================
+		// GPU DMA: VRAM -> Main RAM (mode 0200)
+		// ====================================================================
+		// HLE: the individual 16-bit move loop below is replaced by a native
+		// TypedArray.set() whenever neither the source region (gpu.img.buffer,
+		// sequential from img.index) nor the destination region (map16, at
+		// (addr & 0x1fffff) >> 1) would overflow its backing buffer. This is
+		// a byte-for-byte equivalent copy — the CPU only ever observes the
+		// final contents of main RAM, never the intermediate per-word steps.
+		// Fallback to the original loop covers the (rare) wrapping case.
 		dmaTransferMode0200: function (addr, blck) {
 			if (!addr) return;
 			var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-			// clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
-
 			gpu.transferTotal -= transferSize;
 
 			const img = gpu.img;
-			while (--transferSize >= 0) {
-				const data = gpu.img.buffer[img.index++];
-				map16[(addr & 0x001fffff) >>> 1] = data;
-				addr += 2;
+			const srcArr = img.buffer;
+			const srcStart = img.index;
+			const dstStart = (addr & 0x001fffff) >>> 1;
+
+			if (srcStart + transferSize <= srcArr.length &&
+				dstStart + transferSize <= map16.length) {
+				// Fast path: contiguous, in-bounds — single native memcpy.
+				map16.set(srcArr.subarray(srcStart, srcStart + transferSize), dstStart);
+				img.index = srcStart + transferSize;
+			}
+			else {
+				// Slow path: original per-element loop, handles wrap/overflow.
+				let n = transferSize;
+				let a = addr;
+				while (--n >= 0) {
+					const data = srcArr[img.index++];
+					map16[(a & 0x001fffff) >>> 1] = data;
+					a += 2;
+				}
 			}
 
 			if (gpu.transferTotal <= 0) {
@@ -528,6 +531,12 @@
 			return (blck >> 16) * (blck & 0xFFFF);
 		},
 
+		// ====================================================================
+		// GPU DMA: Main RAM -> VRAM (mode 0201)
+		// ====================================================================
+		// HLE: same idea as 0200, in the opposite direction. This is the hot
+		// path for CPU-uploaded textures and framebuffer blits — a single
+		// TypedArray.set() call replaces the manual per-uint16 loop.
 		dmaTransferMode0201: function (addr, blck) {
 			if (!addr) return;
 			if ((addr & ~3) === 0) {
@@ -537,10 +546,22 @@
 			gpu.transferTotal -= transferSize;
 
 			const img = gpu.img;
-			while (--transferSize >= 0) {
-				const data = map16[(addr & 0x001fffff) >>> 1];
-				img.buffer[img.index++] = data;
-				addr += 2;
+			const dstArr = img.buffer;
+			const dstStart = img.index;
+			const srcStart = (addr & 0x001fffff) >>> 1;
+
+			if (dstStart + transferSize <= dstArr.length &&
+				srcStart + transferSize <= map16.length) {
+				dstArr.set(map16.subarray(srcStart, srcStart + transferSize), dstStart);
+				img.index = dstStart + transferSize;
+			}
+			else {
+				let n = transferSize;
+				let a = addr;
+				while (--n >= 0) {
+					dstArr[img.index++] = map16[(a & 0x001fffff) >>> 1];
+					a += 2;
+				}
 			}
 
 			if (gpu.transferTotal <= 0) {
@@ -553,7 +574,6 @@
 
 		dmaTransferMode0401: function (addr, blck) {
 			if (!addr) return;
-			// if (gpu.dmaIndex !== 0) abort('not implemented')
 			if ((addr & ~3) === 0) {
 				return (blck >> 16) * (blck & 0xFFFF);
 			}
@@ -564,7 +584,6 @@
 			let words = 0;
 			for (; ;) {
 				addr = addr & 0x001fffff;
-				// check for endless loop.
 				if (check[addr] === sequence) return words;
 				check[addr] = sequence;
 				var header = map[addr >> 2];
@@ -577,7 +596,6 @@
 					const packetId = map[addr >> 2] >>> 24;
 					if (packetSizes[packetId] === 0) {
 						addr += 4; --nitem; ++words;
-						//console.warn('invalid packetId:', hex(packetId, 2));
 						return words;
 					}
 					if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
@@ -626,7 +644,6 @@
 			}
 			map[addr >> 2] = 0x00ffffff;
 
-			// clearCodeCache(addr, transferSize << 2); // optimistice assumption (performance reasons)
 			return transferSize;
 		},
 	}

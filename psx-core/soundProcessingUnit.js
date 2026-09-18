@@ -9,6 +9,18 @@
 	let left = null;
 	let right = null;
 
+	// MOBILE (aditivo): reaproveita RecompilerConfig.mobileMode quando presente,
+	// lido em tempo de execução. Aqui o problema não é CPU, é alocação de lixo
+	// (GC) dentro do laço de áudio em tempo real — pausas de GC em engines mais
+	// fracas causam glitch audível. As mudanças abaixo só trocam de onde vem a
+	// memória; nenhum valor calculado muda.
+	function isMobileMode() {
+		return (typeof scope.RecompilerConfig !== 'undefined') && !!scope.RecompilerConfig.mobileMode;
+	}
+
+	// Buffer reutilizável para evitar `new Array` a cada amostra em event().
+	const cdxaBuf = [0.0, 0.0];
+
 	function init() {
 		const context = new AudioContext();
 		const buffer = context.createBuffer(2, frameCount, context.sampleRate);
@@ -49,6 +61,28 @@
 		irqOffset: 0,
 		ramOffset: 0,
 		reverbOffset: 0,
+
+		// Voice bitmasks (24 voices packed into low 24 bits)
+		EON: 0,   // echo/reverb-send enable per voice
+		NON: 0,   // noise mode enable per voice
+		PMON: 0,  // pitch-modulation enable per voice
+
+		// Reverb (32 x 16-bit registers @ 1DC0h-1DFFh)
+		reverbRegs: new Int16Array(32),
+		reverbPos: 0,
+		reverbOutL: 0.0,
+		reverbOutR: 0.0,
+
+		// Noise generator (single global generator shared by all NON-enabled voices).
+		// NOTE: PS1's exact noise LFSR constants aren't reliably documented publicly;
+		// this reproduces the documented *behavior* (frequency scales with SPUCNT
+		// shift/step bits, full-band pseudo-random output) but is not a verified
+		// cycle-exact port of the real silicon's tap/step table.
+		noiseLevel: 0x0001,
+		noiseCounter: 0,
+
+		// last raw (pre-ADSR/volume) decoded sample per voice, used for pitch modulation
+		prevVoiceSample: new Float32Array(24),
 
 		silence: function () {
 			if (left && right) {
@@ -113,35 +147,17 @@
 					this.voices[16 + i].keyOff()
 				}
 					break
-				case 0x1d90: for (var i = 0; i < 16; ++i) {
-					if ((data & (1 << i)) === 0) continue
-					this.voices[i].modOn()
-				}
+				case 0x1d90: this.PMON = ((this.PMON & 0xff0000) | data) >>> 0;
 					break
-				case 0x1d92: for (var i = 0; i < 8; ++i) {
-					if ((data & (1 << i)) === 0) continue
-					this.voices[16 + i].modOn()
-				}
+				case 0x1d92: this.PMON = ((this.PMON & 0x00ffff) | ((data & 0xff) << 16)) >>> 0;
 					break
-				case 0x1d94: for (var i = 0; i < 16; ++i) {
-					if ((data & (1 << i)) === 0) continue
-					this.voices[i].noiseOn()
-				}
+				case 0x1d94: this.NON = ((this.NON & 0xff0000) | data) >>> 0;
 					break
-				case 0x1d96: for (var i = 0; i < 8; ++i) {
-					if ((data & (1 << i)) === 0) continue
-					this.voices[16 + i].noiseOn()
-				}
+				case 0x1d96: this.NON = ((this.NON & 0x00ffff) | ((data & 0xff) << 16)) >>> 0;
 					break
-				case 0x1d98: for (var i = 0; i < 16; ++i) {
-					if ((data & (1 << i)) === 0) continue
-					this.voices[i].echoOn()
-				}
+				case 0x1d98: this.EON = ((this.EON & 0xff0000) | data) >>> 0;
 					break
-				case 0x1d9a: for (var i = 0; i < 8; ++i) {
-					if ((data & (1 << i)) === 0) continue
-					this.voices[16 + i].echoOn()
-				}
+				case 0x1d9a: this.EON = ((this.EON & 0x00ffff) | ((data & 0xff) << 16)) >>> 0;
 					break
 				case 0x1d9c:  // readonly Voice 0..15 on/off
 					break
@@ -239,7 +255,196 @@
 		},
 
 		setReverbRegister: function (addr, data) {
-			// todo: implement reverb later
+			const idx = (addr - 0x1dc0) >> 1;
+			if (idx >= 0 && idx < 32) this.reverbRegs[idx] = data;
+		},
+
+		// Circular reverb work-area addressing: mBASE (reverbOffset) .. end of SPU RAM (80000h),
+		// position advances 2 bytes every reverb tick and wraps within that region.
+		reverbAddr: function (dispBytes) {
+			const base = this.reverbOffset;
+			const size = (0x80000 - base);
+			if (size <= 0) return base;
+			let a = (dispBytes + this.reverbPos) % size;
+			if (a < 0) a += size;
+			return (base + a) & 0x7ffff;
+		},
+
+		reverbRead: function (dispBytes) {
+			const addr = this.reverbAddr(dispBytes);
+			let v = this.data[addr] | (this.data[(addr + 1) & 0x7ffff] << 8);
+			if (v & 0x8000) v -= 0x10000;
+			return v / 0x8000;
+		},
+
+		reverbWrite: function (dispBytes, sample) {
+			const addr = this.reverbAddr(dispBytes);
+			let v = (Math.max(-1, Math.min(1, sample)) * 0x7fff) | 0;
+			this.data[addr] = v & 0xff;
+			this.data[(addr + 1) & 0x7ffff] = (v >> 8) & 0xff;
+		},
+
+		// Real SPU reverb algorithm (same-side/different-side wall reflection IIR,
+		// 4-tap early-echo comb filter, 2 cascaded all-pass filters). Matches the
+		// formula documented for the CXD1837Q SPU. Runs at 22050Hz (half the audio
+		// rate) - see call site in event().
+		computeReverb: function (dryL, dryR) {
+			const R = this.reverbRegs;
+			const vol = idx => this.getVolume(R[idx]);
+			const addr = idx => (R[idx] << 3) >>> 0;
+
+			const Lin = vol(30) * dryL; // vLIN
+			const Rin = vol(31) * dryR; // vRIN
+			const vWALL = vol(7);
+			const vIIR = vol(2);
+
+			// Same Side Reflection (L->L, R->R)
+			const mLSAMEold = this.reverbRead(addr(10));
+			const mLSAME = (Lin + this.reverbRead(addr(16)) * vWALL - mLSAMEold) * vIIR + mLSAMEold;
+			this.reverbWrite(addr(10), mLSAME);
+
+			const mRSAMEold = this.reverbRead(addr(11));
+			const mRSAME = (Rin + this.reverbRead(addr(17)) * vWALL - mRSAMEold) * vIIR + mRSAMEold;
+			this.reverbWrite(addr(11), mRSAME);
+
+			// Different Side Reflection (L->R, R->L)
+			const mLDIFFold = this.reverbRead(addr(18));
+			const mLDIFF = (Lin + this.reverbRead(addr(25)) * vWALL - mLDIFFold) * vIIR + mLDIFFold;
+			this.reverbWrite(addr(18), mLDIFF);
+
+			const mRDIFFold = this.reverbRead(addr(19));
+			const mRDIFF = (Rin + this.reverbRead(addr(24)) * vWALL - mRDIFFold) * vIIR + mRDIFFold;
+			this.reverbWrite(addr(19), mRDIFF);
+
+			// Early echo (4-tap comb filter)
+			let Lout = vol(3) * this.reverbRead(addr(12)) + vol(4) * this.reverbRead(addr(14)) +
+				vol(5) * this.reverbRead(addr(20)) + vol(6) * this.reverbRead(addr(22));
+			let Rout = vol(3) * this.reverbRead(addr(13)) + vol(4) * this.reverbRead(addr(15)) +
+				vol(5) * this.reverbRead(addr(21)) + vol(6) * this.reverbRead(addr(23));
+
+			// Late reverb, all-pass filter 1
+			const vAPF1 = vol(8), dAPF1 = addr(0);
+			const apf1L = this.reverbRead(addr(26) - dAPF1);
+			Lout -= vAPF1 * apf1L;
+			this.reverbWrite(addr(26), Lout);
+			Lout = Lout * vAPF1 + apf1L;
+
+			const apf1R = this.reverbRead(addr(27) - dAPF1);
+			Rout -= vAPF1 * apf1R;
+			this.reverbWrite(addr(27), Rout);
+			Rout = Rout * vAPF1 + apf1R;
+
+			// Late reverb, all-pass filter 2
+			const vAPF2 = vol(9), dAPF2 = addr(1);
+			const apf2L = this.reverbRead(addr(28) - dAPF2);
+			Lout -= vAPF2 * apf2L;
+			this.reverbWrite(addr(28), Lout);
+			Lout = Lout * vAPF2 + apf2L;
+
+			const apf2R = this.reverbRead(addr(29) - dAPF2);
+			Rout -= vAPF2 * apf2R;
+			this.reverbWrite(addr(29), Rout);
+			Rout = Rout * vAPF2 + apf2R;
+
+			this.reverbPos = (this.reverbPos + 2) % Math.max(1, (0x80000 - this.reverbOffset));
+			this.reverbOutL = Lout;
+			this.reverbOutR = Rout;
+		},
+
+		// MOBILE: mesmos dois helpers que computeReverb cria como closures locais
+		// (vol/addr) a cada chamada, só que como métodos fixos do objeto spu —
+		// nenhuma função nova é alocada em tempo de execução. Usados apenas por
+		// computeReverbMobile logo abaixo; computeReverb continua intocado.
+		reverbVol: function (idx) {
+			return this.getVolume(this.reverbRegs[idx]);
+		},
+
+		reverbAddrOf: function (idx) {
+			return (this.reverbRegs[idx] << 3) >>> 0;
+		},
+
+		// MOBILE: equivalente aditivo de computeReverb, matematicamente idêntico —
+		// só troca as closures vol/addr (recriadas a cada chamada) pelos métodos
+		// fixos acima, evitando alocação de função dentro do laço de áudio.
+		computeReverbMobile: function (dryL, dryR) {
+			const Lin = this.reverbVol(30) * dryL; // vLIN
+			const Rin = this.reverbVol(31) * dryR; // vRIN
+			const vWALL = this.reverbVol(7);
+			const vIIR = this.reverbVol(2);
+
+			// Same Side Reflection (L->L, R->R)
+			const mLSAMEold = this.reverbRead(this.reverbAddrOf(10));
+			const mLSAME = (Lin + this.reverbRead(this.reverbAddrOf(16)) * vWALL - mLSAMEold) * vIIR + mLSAMEold;
+			this.reverbWrite(this.reverbAddrOf(10), mLSAME);
+
+			const mRSAMEold = this.reverbRead(this.reverbAddrOf(11));
+			const mRSAME = (Rin + this.reverbRead(this.reverbAddrOf(17)) * vWALL - mRSAMEold) * vIIR + mRSAMEold;
+			this.reverbWrite(this.reverbAddrOf(11), mRSAME);
+
+			// Different Side Reflection (L->R, R->L)
+			const mLDIFFold = this.reverbRead(this.reverbAddrOf(18));
+			const mLDIFF = (Lin + this.reverbRead(this.reverbAddrOf(25)) * vWALL - mLDIFFold) * vIIR + mLDIFFold;
+			this.reverbWrite(this.reverbAddrOf(18), mLDIFF);
+
+			const mRDIFFold = this.reverbRead(this.reverbAddrOf(19));
+			const mRDIFF = (Rin + this.reverbRead(this.reverbAddrOf(24)) * vWALL - mRDIFFold) * vIIR + mRDIFFold;
+			this.reverbWrite(this.reverbAddrOf(19), mRDIFF);
+
+			// Early echo (4-tap comb filter)
+			let Lout = this.reverbVol(3) * this.reverbRead(this.reverbAddrOf(12)) + this.reverbVol(4) * this.reverbRead(this.reverbAddrOf(14)) +
+				this.reverbVol(5) * this.reverbRead(this.reverbAddrOf(20)) + this.reverbVol(6) * this.reverbRead(this.reverbAddrOf(22));
+			let Rout = this.reverbVol(3) * this.reverbRead(this.reverbAddrOf(13)) + this.reverbVol(4) * this.reverbRead(this.reverbAddrOf(15)) +
+				this.reverbVol(5) * this.reverbRead(this.reverbAddrOf(21)) + this.reverbVol(6) * this.reverbRead(this.reverbAddrOf(23));
+
+			// Late reverb, all-pass filter 1
+			const vAPF1 = this.reverbVol(8), dAPF1 = this.reverbAddrOf(0);
+			const apf1L = this.reverbRead(this.reverbAddrOf(26) - dAPF1);
+			Lout -= vAPF1 * apf1L;
+			this.reverbWrite(this.reverbAddrOf(26), Lout);
+			Lout = Lout * vAPF1 + apf1L;
+
+			const apf1R = this.reverbRead(this.reverbAddrOf(27) - dAPF1);
+			Rout -= vAPF1 * apf1R;
+			this.reverbWrite(this.reverbAddrOf(27), Rout);
+			Rout = Rout * vAPF1 + apf1R;
+
+			// Late reverb, all-pass filter 2
+			const vAPF2 = this.reverbVol(9), dAPF2 = this.reverbAddrOf(1);
+			const apf2L = this.reverbRead(this.reverbAddrOf(28) - dAPF2);
+			Lout -= vAPF2 * apf2L;
+			this.reverbWrite(this.reverbAddrOf(28), Lout);
+			Lout = Lout * vAPF2 + apf2L;
+
+			const apf2R = this.reverbRead(this.reverbAddrOf(29) - dAPF2);
+			Rout -= vAPF2 * apf2R;
+			this.reverbWrite(this.reverbAddrOf(29), Rout);
+			Rout = Rout * vAPF2 + apf2R;
+
+			this.reverbPos = (this.reverbPos + 2) % Math.max(1, (0x80000 - this.reverbOffset));
+			this.reverbOutL = Lout;
+			this.reverbOutR = Rout;
+		},
+
+		// SPUCNT.10-13 = noise frequency shift, SPUCNT.8-9 = noise frequency step.
+		// Higher shift = slower update (matches real hardware direction). See caveat
+		// above `noiseLevel`: exact per-step increments are an approximation.
+		updateNoise: function () {
+			const shift = (this.SPUCNT >> 10) & 0xf;
+			const step = (this.SPUCNT >> 8) & 0x3;
+			const stepAdd = [4, 5, 6, 7][step];
+
+			this.noiseCounter += stepAdd << (shift >= 11 ? 0 : (11 - shift));
+			while (this.noiseCounter >= 0x8000) {
+				this.noiseCounter -= 0x8000;
+				const bit = ((this.noiseLevel >> 0) ^ (this.noiseLevel >> 2) ^ (this.noiseLevel >> 3) ^ (this.noiseLevel >> 5) ^ 1) & 1;
+				this.noiseLevel = ((this.noiseLevel << 1) | bit) & 0xffff;
+			}
+		},
+
+		getNoiseSample: function () {
+			let v = this.noiseLevel;
+			if (v & 0x8000) v -= 0x10000;
+			return v / 0x8000;
 		},
 
 		checkIrq: function (voice) {
@@ -280,15 +485,32 @@
 				++this.totalSamples;
 
 				let l = 0, r = 0;
+				let reverbInL = 0, reverbInR = 0;
 
 				const captureIndex = (this.totalSamples % 0x200) << 1;
 				this.checkIrq();
+				this.updateNoise();
+				const globalNoise = this.getNoiseSample();
 
-				for (let i = 23; i >= 0; --i) {
+				for (let i = 0; i <= 23; ++i) {
 					let voice = this.voices[i];
-					if (!voice.adsrState) continue;
+					if (!voice.adsrState) { this.prevVoiceSample[i] = 0; continue; }
 
-					voice.pitchCounter += voice.pitchStep;
+					// Pitch modulation: voice N's step is scaled by voice N-1's last raw
+					// sample. NOTE: uses the previous *tick's* sample rather than a same-tick
+					// value (the real chip processes voices 0..23 in order within one tick;
+					// this mixer's structure makes a same-tick dependency impractical here),
+					// and the exact scaling constants are a documented-shape approximation.
+					let step = voice.pitchStep;
+					if (i > 0 && ((this.PMON >>> i) & 1)) {
+						const prev = this.prevVoiceSample[i - 1];
+						let factor = 0x1000 + Math.round(prev * 0x1000);
+						factor = Math.max(0, Math.min(0x1fff, factor));
+						step = (step * factor) >> 12;
+						if (step > 0x3fff) step = 0x3fff;
+					}
+
+					voice.pitchCounter += step;
 
 					if (voice.pitchCounter >= BLOCKSIZE) {
 						voice.pitchCounter -= BLOCKSIZE;
@@ -298,11 +520,17 @@
 					}
 
 					const sampleIndex = voice.pitchCounter >>> 12;
-					const sample = voice.buffer[sampleIndex];
+					const rawSample = ((this.NON >>> i) & 1) ? globalNoise : voice.buffer[sampleIndex];
+					this.prevVoiceSample[i] = rawSample;
 
 					const adsrVolume = voice.mixADSR();
-					const sampleL = (sample * adsrVolume * voice.volumeLeft);
-					const sampleR = (sample * adsrVolume * voice.volumeRight);
+					const sampleL = (rawSample * adsrVolume * voice.volumeLeft);
+					const sampleR = (rawSample * adsrVolume * voice.volumeRight);
+
+					if ((this.EON >>> i) & 1) {
+						reverbInL += sampleL;
+						reverbInR += sampleR;
+					}
 
 					if (i === 3) {
 						const mono = (sampleL * 0x8000) >>> 0;
@@ -319,7 +547,13 @@
 					r += sampleR;
 				}
 
-				var cdxa = [0.0, 0.0];
+				var cdxa;
+				if (isMobileMode()) {
+					cdxaBuf[0] = 0.0; cdxaBuf[1] = 0.0;
+					cdxa = cdxaBuf;
+				} else {
+					cdxa = [0.0, 0.0];
+				}
 				cdr.nextpcm(cdxa);
 
 				let cdSampleL = (cdxa[0] * this.cdVolumeLeft);
@@ -336,6 +570,22 @@
 				}
 				l += cdSampleL;
 				r += cdSampleR;
+
+				// CD audio only feeds the reverb unit when SPUCNT bit 2 (CD reverb) is set.
+				if (this.SPUCNT & 0x0004) {
+					reverbInL += cdSampleL;
+					reverbInR += cdSampleR;
+				}
+
+				// Reverb runs at 22050Hz (half the output rate); master-enabled by SPUCNT.7.
+				if (this.SPUCNT & 0x0080) {
+					if ((this.totalSamples & 1) === 0) {
+						if (isMobileMode()) { this.computeReverbMobile(reverbInL, reverbInR); }
+						else { this.computeReverb(reverbInL, reverbInR); }
+					}
+					l += this.reverbOutL * this.reverbVolumeLeft;
+					r += this.reverbOutR * this.reverbVolumeRight;
+				}
 
 				l = (l * this.mainVolumeLeft);
 				r = (r * this.mainVolumeRight);
@@ -396,18 +646,6 @@
 		this.blockAddress = this.r1Cx6 << 3;
 		this.repeatAddress = this.r1CxE << 3;
 		this.startAdsrAttack();
-	}
-
-	Voice.prototype.echoOn = function () {
-		// todo: reverb
-	}
-
-	Voice.prototype.modOn = function () {
-		// todo: pitch modulation
-	}
-
-	Voice.prototype.noiseOn = function () {
-		// todo: noise
 	}
 
 	Voice.prototype.keyOff = function () {

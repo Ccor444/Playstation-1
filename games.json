@@ -1,0 +1,162 @@
+[
+  {
+    "id": "tekken-3",
+    "title": "Tekken 3",
+    "region": "USA",
+    "size": "450 MB",
+    "url": "EA Sports Supercross.bin",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Tekken%203%20(USA).png"
+  },
+  {
+    "id": "crash-team-racing",
+    "title": "Crash Team Racing",
+    "region": "USA",
+    "size": "310 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Crash%20Team%20Racing%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Crash%20Team%20Racing%20(USA).png"
+  },
+  {
+    "id": "castlevania-sotn",
+    "title": "Castlevania: Symphony of the Night",
+    "region": "USA",
+    "size": "380 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Castlevania%20-%20Symphony%20of%20the%20Night%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Castlevania%20-%20Symphony%20of%20the%20Night%20(USA).png"
+  },
+  {
+    "id": "silent-hill",
+    "title": "Silent Hill",
+    "region": "USA",
+    "size": "320 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Silent%20Hill%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Silent%20Hill%20(USA).png"
+  },
+  {
+    "id": "metal-gear-solid-d1",
+    "title": "Metal Gear Solid (Disc 1)",
+    "region": "USA",
+    "size": "420 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Metal%20Gear%20Solid%20%28USA%29%20%28Disc%201%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Metal%20Gear%20Solid%20(USA)%20(Disc%201).png"
+  },
+  {
+    "id": "resident-evil-2-d1",
+    "title": "Resident Evil 2 (Leon - Disc 1)",
+    "region": "USA",
+    "size": "380 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Resident%20Evil%202%20-%20Dual%20Shock%20Edition%20%28USA%29%20%28Disc%201%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Resident%20Evil%202%20-%20Dual%20Shock%20Edition%20(USA)%20(Disc%201).png"
+  },
+  {
+    "id": "resident-evil-3",
+    "title": "Resident Evil 3: Nemesis",
+    "region": "USA",
+    "size": "360 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Resident%20Evil%203%20-%20Nemesis%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Resident%20Evil%203%20-%20Nemesis%20(USA).png"
+  },
+  {
+    "id": "dino-crisis",
+    "title": "Dino Crisis",
+    "region": "USA",
+    "size": "340 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Dino%20Crisis%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Dino%20Crisis%20(USA).png"
+  },
+  {
+    "id": "crash-3-warped",
+    "title": "Crash Bandicoot 3: Warped",
+    "region": "USA",
+    "size": "140 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Crash%20Bandicoot%203%20-%20Warped%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Crash%20Bandicoot%203%20-%20Warped%20(USA).png"
+  },
+  {
+    "id": "spiderman",
+    "title": "Spider-Man",
+    "region": "USA",
+    "size": "380 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Spider-Man%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Spider-Man%20(USA).png"
+  },
+  {
+    "id": "thps2",
+    "title": "Tony Hawk's Pro Skater 2",
+    "region": "USA",
+    "size": "390 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Tony%20Hawk%27s%20Pro%20Skater%202%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Tony%20Hawk's%20Pro%20Skater%202%20(USA).png"
+  },
+  {
+    "id": "ff7-d1",
+    "title": "Final Fantasy VII (Disc 1)",
+    "region": "USA",
+    "size": "470 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Final%20Fantasy%20VII%20%28USA%29%20%28Disc%201%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Final%20Fantasy%20VII%20(USA)%20(Disc%201).png"
+  },
+  {
+    "id": "syphon-filter",
+    "title": "Syphon Filter",
+    "region": "USA",
+    "size": "390 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Syphon%20Filter%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Syphon%20Filter%20(USA).png"
+  },
+  {
+    "id": "driver",
+    "title": "Driver: You're the Wheelman",
+    "region": "USA",
+    "size": "410 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Driver%20-%20You%27re%20the%20Wheelman%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Driver%20-%20You're%20the%20Wheelman%20(USA).png"
+  },
+  {
+    "id": "medal-of-honor",
+    "title": "Medal of Honor",
+    "region": "USA",
+    "size": "430 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Medal%20of%20Honor%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Medal%20of%20Honor%20(USA).png"
+  },
+  {
+    "id": "tomb-raider-2",
+    "title": "Tomb Raider II",
+    "region": "USA",
+    "size": "210 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Tomb%20Raider%20II%20-%20Starring%20Lara%20Croft%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Tomb%20Raider%20II%20-%20Starring%20Lara%20Croft%20(USA).png"
+  },
+  {
+    "id": "gran-turismo-2-d1",
+    "title": "Gran Turismo 2 (Disc 1)",
+    "region": "USA",
+    "size": "460 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Gran%20Turismo%202%20%28USA%29%20%28Disc%201%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Gran%20Turismo%202%20(USA)%20(Disc%201).png"
+  },
+  {
+    "id": "spyro-dragon",
+    "title": "Spyro the Dragon",
+    "region": "USA",
+    "size": "340 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Spyro%20the%20Dragon%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Spyro%20the%20Dragon%20(USA).png"
+  },
+  {
+    "id": "twisted-metal-2",
+    "title": "Twisted Metal 2",
+    "region": "USA",
+    "size": "400 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Twisted%20Metal%202%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Twisted%20Metal%202%20(USA).png"
+  },
+  {
+    "id": "crash-bandicoot-2",
+    "title": "Crash Bandicoot 2: Cortex Strikes Back",
+    "region": "USA",
+    "size": "350 MB",
+    "url": "https://archive.org/download/Centuron-PSX/Crash%20Bandicoot%202%20-%20Cortex%20Strikes%20Back%20%28USA%29.chd",
+    "cover": "https://raw.githubusercontent.com/libretro/libretro-thumbnails/master/Sony%20-%20PlayStation/Named_Boxarts/Crash%20Bandicoot%202%20-%20Cortex%20Strikes%20Back%20(USA).png"
+  }
+]

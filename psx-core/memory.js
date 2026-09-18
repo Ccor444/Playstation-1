@@ -1,9 +1,6 @@
 (scope => {
-
-	'use strict';
-
+'use strict';
 	class MemoryBlock extends Int32Array {
-
 		getInt8(index) {
 			switch (index & 3) {
 				case 0: return (this[index >> 2] << 24) >> 24;
@@ -12,7 +9,6 @@
 				case 3: return (this[index >> 2] << 0) >> 24;
 			}
 		}
-
 		getInt16(index) {
 			switch (index & 3) {
 				case 0: return (this[index >> 2] << 16) >> 16;
@@ -20,14 +16,12 @@
 				default: abort('unaligned read: ' + hex(index));
 			}
 		}
-
 		getInt32(index) {
 			switch (index & 3) {
 				case 0: return (this[index >> 2]) >> 0;
 				default: abort('unaligned read: ' + hex(index));
 			}
 		}
-
 		setInt8(index, data) {
 			switch (index & 3) {
 				case 0: this[index >> 2] = (this[index >> 2] & 0xffffff00) | ((data & 0xff) << 0); break;
@@ -36,12 +30,35 @@
 				case 3: this[index >> 2] = (this[index >> 2] & 0x00ffffff) | ((data & 0xff) << 24); break;
 			}
 		}
-
 	}
 
 	const map = new MemoryBlock(0x02000000 >> 2);
 	const map8 = new Int8Array(map.buffer);
 	const map16 = new Int16Array(map.buffer);
+
+	// Região da BIOS:
+	// Padrão: 512KB -> 0x01C00000 até 0x01C80000.
+	// Pode ser expandida dinamicamente via setBiosLimit().
+	let biosLimit = 0x80000;
+	let biosEnd = 0x01C00000 + biosLimit;
+
+	function setBiosLimit(size) {
+		const maxSize = map.buffer.byteLength - 0x01C00000;
+
+		size |= 0;
+
+		if (size < 0) {
+			size = 0;
+		}
+
+		if (size > maxSize) {
+			size = maxSize;
+		}
+
+		// Arredonda para cima para múltiplo de 4.
+		biosLimit = (size + 3) & ~3;
+		biosEnd = 0x01C00000 + biosLimit;
+	}
 
 	function hwRead8(addr) {
 		psx.clock += 3;
@@ -88,10 +105,13 @@
 			psx.clock += 5;
 			return map8[base >>> 0] >> 0;
 		}
-		if (base >= 0x01C00000 && base < 0x01C80000) {
+
+		// BIOS expandida: usa biosEnd dinâmico.
+		if (base >= 0x01C00000 && base < biosEnd) {
 			psx.clock += 8;
 			return map8[base >>> 0] >> 0;
 		}
+
 		if (base >= 0x01000000 && base < 0x01080000) {
 			psx.clock += 6;
 			return map8[base >>> 0] >> 0;
@@ -157,10 +177,13 @@
 			psx.clock += 5;
 			return map16[base >>> 1] >> 0;
 		}
-		if (base >= 0x01C00000 && base < 0x01C80000) {
+
+		// BIOS expandida: usa biosEnd dinâmico.
+		if (base >= 0x01C00000 && base < biosEnd) {
 			psx.clock += 12;
 			return map16[base >>> 1];
 		}
+
 		if (base >= 0x01000000 && base < 0x01080000) {
 			psx.clock += 12;
 			return map16[base >>> 1];
@@ -231,7 +254,6 @@
 			psx.clock += 5;
 			return map[(base & 0x001fffff) >>> 2] >> 0;
 		}
-
 		if ((base >= 0x01800000) && (base < 0x01803000)) {
 			return hwRead32(base) >> 0;
 		}
@@ -239,10 +261,13 @@
 			psx.clock += 9;
 			return map[base >>> 2] >> 0;
 		}
-		if (base >= 0x01C00000 && base < 0x01C80000) {
+
+		// BIOS expandida: usa biosEnd dinâmico.
+		if (base >= 0x01C00000 && base < biosEnd) {
 			psx.clock += 24;
 			return map[base >>> 2] >> 0;
 		}
+
 		if (base === 0x01fe0130) {
 			return map[base >>> 2] >> 0;
 		}
@@ -376,7 +401,6 @@
 			case 0x1814: gpu.wr32r1814(data); break;
 			case 0x1820: mdc.wr32r1820(data); break;
 			case 0x1824: mdc.wr32r1824(data); break;
-
 			default: abort(`w32: unable to store at $${hex(addr, 8)}`);
 		}
 	}
@@ -403,7 +427,6 @@
 	scope.map = map;
 	scope.map8 = map8;
 	scope.map16 = map16;
-
 	scope.memRead8 = memRead8;
 	scope.memRead16 = memRead16;
 	scope.memRead32 = memRead32;
@@ -411,5 +434,5 @@
 	scope.memWrite16 = memWrite16;
 	scope.memWrite32 = memWrite32;
 	scope.MemoryBlock = MemoryBlock;
-
+	scope.setBiosLimit = setBiosLimit;
 })(window);

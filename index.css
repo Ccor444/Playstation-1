@@ -1,0 +1,474 @@
+:root {
+  --display-width: calc((100vh / 9 * 14) - 32px);
+  --display-height: calc(100vh - 32px);
+  --display-left: calc((100vw - var(--display-width)) / 2);
+  --display-top: 16px;
+}
+
+html {
+  box-sizing: border-box;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+  user-select: none;
+}
+
+body {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  top: 0px;
+  bottom: 0px;
+  margin: 0px;
+  overflow: hidden;
+  background-color: rgb(32, 32, 32);
+}
+
+canvas {
+  position: absolute;
+  width: var(--display-width);
+  height: var(--display-height);
+  z-index: 1;
+  left: var(--display-left);
+  top: var(--display-top);
+  border: solid 1px rgb(24, 24, 24);
+}
+
+header {
+  position: absolute;
+  font-weight: 900;
+  z-index: 2;
+  left: 16px;
+  top: var(--display-top);
+  bottom: 16px;
+  width: calc(var(--display-left) - 32px);
+}
+
+header > span {
+  top: 50%;
+  right: 50%;
+  position: absolute;
+  transform: scale(-1) translate(-50%, 50%) rotate(90deg);
+  font-size: calc(var(--display-left) - 40px);
+  font-size: 80px;
+  text-shadow: -2px 1px 2px rgba(80, 80, 80, 0.75), 2px -1px 2px rgba(0, 0, 0, 0.75);
+  color: rgba(24, 24, 24, 1);
+  background: transparent;
+}
+
+nav {
+  position: absolute;
+  z-index: 2;
+  color: red;
+  right: 16px;
+  top: 16px;
+  bottom: 16px;
+  width: calc(var(--display-left) - 32px);
+  background-color: transparent;
+  display: flex;
+  flex-direction: column;
+}
+
+/* overrides for developer view */
+@media screen and (max-width: 133.34vh) {
+  :root {
+    --display-width: calc((100vw) - 32px);
+    --display-height: calc((100vw / 14 * 9) - 32px);
+    --display-left: 16px;
+    --display-top: calc((100vh - var(--display-height)) / 2);
+  }
+
+  canvas {
+  }
+
+  header {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    height: calc(var(--display-top) - 32px);
+    bottom: unset;
+    width: unset;
+    line-height: calc(var(--display-top) - 32px);
+  }
+
+  header > span {
+    transform: scale(1) translate(50%, -50%);
+    font-size: calc(var(--display-top) - 32px);
+    text-shadow: 2px 1px 2px rgba(80, 80, 80, 0.75), -2px -1px 2px rgba(0, 0, 0, 0.75);
+  }
+
+  nav {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+    height: calc(var(--display-top) - 32px);
+    width: unset;
+    top: unset;
+    flex-direction: row;
+  }
+}
+
+span.nobios {
+  animation-name: color;
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+}
+
+@keyframes color {
+  0% {
+    color: rgb(96, 24, 24);
+  }
+  33% {
+    color: rgb(24, 24, 24);
+  }
+  67% {
+    color: rgb(24, 24, 24);
+  }
+  100% {
+    color: rgb(96, 24, 24);
+  }
+}
+
+nav > div {
+  width: 10vh;
+  height: 10vh;
+  margin-bottom: 1vh;
+  margin-right: 1vw;
+  flex: none;
+  border: 0.5vh solid #555;
+  border-radius: 1vh;
+  cursor: pointer;
+  background-size: 8vh;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+nav > div:last-child {
+  margin-bottom: unset !important;
+  margin-right: unset !important;
+}
+
+nav > span {
+  flex: 1;
+}
+
+#globe {
+  background-image: url('images/globe.svg');
+}
+
+#gamepad {
+  background-image: url('images/keyboard.svg');
+}
+
+#gamepad.keyboard {
+  background-image: url('images/keyboard.svg');
+}
+
+#gamepad.gamepad {
+  background-image: url('images/gamepad.svg');
+}
+
+#gamepad.connected {
+  border: 0.5vh solid #246;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+.custom-file-upload {
+  display: inline-block;
+  width: 100%;
+  height: 100%;
+  background-image: url('images/upload.svg');
+  cursor: pointer;
+}
+
+#quality {
+  text-align: center;
+  line-height: 9vh;
+  font-size: 5vh;
+  font-weight: bold;
+  color: rgb(80, 80, 80);
+}
+
+#quality.restart {
+  border: 0.5vh solid #a42;
+}
+
+/* Reset básico e prevenção de gestos do navegador */
+* {
+  box-sizing: border-box;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* --- CAMADA 1: Tela do Jogo (Canvas) --- */
+.canvas-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #000;
+}
+
+#display {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* --- CAMADA 2: Gamepad Virtual Sobreposto --- */
+.gamepad-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none; /* Permite toques no canvas nas áreas vazias */
+  background: transparent;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+
+/* Reativa interatividade para botões e controles */
+.emulator-bar,
+.btn,
+.ui-btn {
+  pointer-events: auto;
+}
+
+/* Barra Superior Translúcida */
+.emulator-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.file-input-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.file-input-wrapper input[type="file"] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.ui-btn {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.ui-btn:active {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.nobios {
+  font-size: 11px;
+  color: #ff5555;
+  font-weight: bold;
+}
+
+/* --- LAYOUT DOS CONTROLES (RESPONSIVO) --- */
+.pad-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+  flex: 1;
+  padding-bottom: 5px;
+}
+
+.pad-wing {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.left-wing {
+  align-items: flex-start;
+}
+
+.right-wing {
+  align-items: flex-end;
+}
+
+/* Estilo Geral dos Botões */
+.btn {
+  background-color: rgba(255, 255, 255, 0.22);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+  transition: transform 0.05s ease, background-color 0.05s ease;
+}
+
+.btn:active,
+.btn.active {
+  background-color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.9);
+  transform: scale(0.92);
+}
+
+/* Gatilhos Superiores (L1, L2, R1, R2) */
+.bumper-group {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-bumper {
+  width: clamp(45px, 11vmin, 65px);
+  height: clamp(30px, 7vmin, 40px);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+/* D-PAD (Cruz Direcional) */
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, clamp(40px, 10vmin, 55px));
+  grid-template-rows: repeat(3, clamp(40px, 10vmin, 55px));
+  gap: 3px;
+}
+
+.dpad .btn {
+  border-radius: 8px;
+}
+
+#up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+#left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+#right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+#down {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+/* Botões de Ação (Triângulo, Quadrado, Círculo, X) */
+.action-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, clamp(40px, 10vmin, 55px));
+  grid-template-rows: repeat(3, clamp(40px, 10vmin, 55px));
+  gap: 3px;
+}
+
+.action-buttons .btn {
+  border-radius: 50%;
+}
+
+#triangle {
+  grid-column: 2;
+  grid-row: 1;
+  color: #4ade80;
+}
+
+#square {
+  grid-column: 1;
+  grid-row: 2;
+  color: #f472b6;
+}
+
+#circle {
+  grid-column: 3;
+  grid-row: 2;
+  color: #f87171;
+}
+
+#cross {
+  grid-column: 2;
+  grid-row: 3;
+  color: #60a5fa;
+}
+
+/* Botões Centrais (Select / Start) */
+.center-buttons {
+  display: flex;
+  gap: 12px;
+  align-self: flex-end;
+  margin-bottom: 10px;
+}
+
+.btn-center {
+  width: clamp(50px, 12vmin, 65px);
+  height: clamp(22px, 5vmin, 28px);
+  border-radius: 12px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Analógicos (L3 / R3) */
+.btn-stick {
+  width: clamp(38px, 8vmin, 48px);
+  height: clamp(38px, 8vmin, 48px);
+  font-size: 11px;
+  margin-top: 4px;
+}
