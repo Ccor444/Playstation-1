@@ -1,7 +1,0 @@
-{
-  "defaultTheme": "ps3",
-  "themes": [
-    { "id": "ps3",           "file": "ps3.json" },
-    { "id": "mortal-kombat", "file": "mortal-kombat.json" }
-  ]
-}
