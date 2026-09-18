@@ -11,6 +11,8 @@
   <title>PS3 XMB Emulator Interface</title>
   
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Fonte adicionada para o tema Sakura Dream -->
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 
   <style>
     * {
@@ -45,9 +47,7 @@
       --watermark-color: #38bdf8;
     }
 
-    /* ============ MARCA D'ÁGUA ============
-       Só aparece quando o XMB está aberto (body.xmb-open) E o tema ativa.
-       Isso garante que nunca sobreponha o jogo em execução. */
+    /* ============ MARCA D'ÁGUA ============ */
     #theme-watermark {
       position: absolute;
       top: 50%; left: 50%;
@@ -543,9 +543,11 @@
         defaultTheme: 'ps3',
         themes: [
           { id: 'ps3',           file: 'ps3.json' },
-          { id: 'mortal-kombat', file: 'mortal-kombat.json' }
+          { id: 'mortal-kombat', file: 'mortal-kombat.json' },
+          { id: 'sakura-dream',  file: 'sakura-dream.json' } // <--- NOVO TEMA AQUI
         ]
       };
+      
       const FALLBACK_THEMES = {
         'ps3': {
           id: 'ps3', name: 'PS3 Clássico', icon: 'fa-gamepad', themeColor: '#000000',
@@ -587,6 +589,50 @@
             watermark: { enabled:true, color:'#dc2626' },
             glowPulses: { enabled:true, count:6, color:'rgba(251,146,60,0.18)' },
             embers: { enabled:true, maxParticles:90, hueStart:10, hueEnd:50, spawnChance:0.6 }
+          }
+        },
+        'sakura-dream': {
+          id: 'sakura-dream', 
+          name: 'Sakura Dream', 
+          icon: 'fa-heart', 
+          themeColor: '#1a0315',
+          cssVariables: {
+            '--accent':         '#ec4899',
+            '--accent-soft':    'rgba(236, 72, 153, 0.35)',
+            '--accent-glow':    'rgba(168, 85, 247, 0.6)',
+            '--accent-border':  'rgba(236, 72, 153, 0.95)',
+            '--accent-text':    '#f472b6',
+            '--menu-gradient-1':'rgba(219, 39, 119, 0.7)',
+            '--menu-gradient-2':'rgba(88, 28, 135, 0.75)',
+            '--xmb-text-glow':  'rgba(168, 85, 247, 0.7)',
+            '--font-display':   "'Dancing Script', 'Pacifico', cursive",
+            '--watermark-opacity': '0.12',
+            '--watermark-color':   '#ec4899'
+          },
+          background: {
+            stops: ['#1a0315', '#2d0a2e', '#4a0e4e', '#0a010a'],
+            positions: [0, 0.4, 0.7, 1]
+          },
+          waves: [
+            { amplitude: 60, freq: 0.0015, speed: 0.010, offset: 0,   color1: 'rgba(236, 72, 153, 0.45)', color2: 'rgba(88, 28, 135, 0.05)',  heightRatio: 0.50 },
+            { amplitude: 45, freq: 0.0022, speed: 0.015, offset: 1.8, color1: 'rgba(168, 85, 247, 0.35)', color2: 'rgba(50, 10, 60, 0.02)',   heightRatio: 0.55 },
+            { amplitude: 75, freq: 0.0010, speed: 0.008, offset: 3.5, color1: 'rgba(251, 207, 232, 0.30)', color2: 'rgba(30, 5, 35, 0.02)',    heightRatio: 0.45 }
+          ],
+          waveSpeedMultiplier: 0.9,
+          effects: {
+            watermark: { enabled: true, color: '#ec4899' },
+            glowPulses: {
+              enabled: true,
+              count: 8,
+              color: 'rgba(236, 72, 153, 0.15)'
+            },
+            embers: {
+              enabled: true,
+              maxParticles: 60,
+              hueStart: 280,
+              hueEnd: 350,
+              spawnChance: 0.4
+            }
           }
         }
       };
