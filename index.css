@@ -1,0 +1,397 @@
+/* =========================================================
+   PSX — Casca de app nativo (mobile-first)
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   1. Tokens de design
+   --------------------------------------------------------- */
+:root {
+    /* Safe areas (notch, home indicator, cantos arredondados) */
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+
+    /* Cores */
+    --c-bg:        #000000;
+    --c-fg:        #f2f2f2;
+    --c-muted:     #8a8a8e;
+    --c-accent:    #6ac1ff;
+    --c-accent-2:  #a8dcff;
+
+    /* Superfícies translúcidas (blur estilo iOS/Android) */
+    --c-surface:   rgba(28, 28, 30, 0.86);
+    --c-hairline:  rgba(255, 255, 255, 0.12);
+
+    /* Movimento */
+    --ease-native: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ease-spring: cubic-bezier(0.20, 0.90, 0.30, 1.25);
+    --dur-fast:    0.18s;
+    --dur:         0.32s;
+    --dur-slow:    0.50s;
+
+    --radius-pill: 999px;
+    --radius-card: 18px;
+
+    color-scheme: dark;
+}
+
+/* ---------------------------------------------------------
+   2. Reset radical estilo app nativo
+   --------------------------------------------------------- */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--c-bg);
+    color: var(--c-fg);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Segoe UI", Roboto, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* Cursor some quando o app fica ocioso (desktop / DeX) */
+body.cursor-idle,
+body.cursor-idle * { cursor: none !important; }
+
+/* ---------------------------------------------------------
+   3. Canvas — tela cheia
+   --------------------------------------------------------- */
+canvas#display {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 1;
+    background: #000;
+    border: 0;
+    outline: none;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    touch-action: none;
+    contain: strict;
+}
+
+/* ---------------------------------------------------------
+   4. Elementos legados ocultos
+   --------------------------------------------------------- */
+header,
+nav { display: none !important; }
+span.nobios { display: none; }
+
+input[type="file"] {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0; opacity: 0;
+    pointer-events: none;
+}
+
+/* ---------------------------------------------------------
+   5. Splash + boot loader
+   --------------------------------------------------------- */
+#splash {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding:
+        calc(var(--sat) + 24px)
+        calc(var(--sar) + 24px)
+        calc(var(--sab) + 24px)
+        calc(var(--sal) + 24px);
+    background:
+        radial-gradient(120% 85% at 50% 32%, #1c1c1e 0%, #0b0b0c 58%, #000 100%);
+    transition:
+        opacity var(--dur-slow) var(--ease-native),
+        transform var(--dur-slow) var(--ease-native),
+        filter var(--dur-slow) var(--ease-native);
+    will-change: opacity, transform;
+}
+#splash.splash-hide {
+    opacity: 0;
+    transform: scale(1.06);
+    filter: blur(6px);
+    pointer-events: none;
+}
+
+.splash-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: splashPop 0.7s var(--ease-spring) both;
+}
+
+.splash-logo {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+                 "Segoe UI", Roboto, Arial, sans-serif;
+    font-weight: 900;
+    font-size: clamp(64px, 20vw, 92px);
+    letter-spacing: 0.06em;
+    line-height: 1;
+    background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 46%, #8d8d8d 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter:
+        drop-shadow(0 8px 26px rgba(106, 193, 255, 0.28))
+        drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
+    animation: logoGlow 3.2s ease-in-out infinite;
+}
+
+.splash-sub {
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.42em;
+    text-indent: 0.42em;
+    color: var(--c-muted);
+    text-transform: uppercase;
+}
+
+.splash-progress {
+    margin-top: 34px;
+    width: min(60vw, 220px);
+    height: 3px;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    position: relative;
+}
+.splash-progress-bar {
+    position: absolute;
+    inset: 0;
+    width: 42%;
+    border-radius: inherit;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        var(--c-accent) 40%,
+        var(--c-accent-2) 50%,
+        var(--c-accent) 60%,
+        transparent 100%);
+    animation: splashProgress 1.4s ease-in-out infinite;
+}
+
+.splash-status {
+    margin-top: 14px;
+    min-height: 16px;
+    max-width: 84vw;
+    padding: 0 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--c-muted);
+    transition: color var(--dur-fast) var(--ease-native),
+                opacity var(--dur-fast) var(--ease-native);
+}
+
+@keyframes splashPop {
+    0%   { opacity: 0; transform: scale(0.86); }
+    100% { opacity: 1; transform: scale(1); }
+}
+@keyframes logoGlow {
+    0%, 100% { filter: drop-shadow(0 8px 26px rgba(106,193,255,0.24))
+                       drop-shadow(0 2px 3px rgba(0,0,0,0.9)); }
+    50%      { filter: drop-shadow(0 8px 34px rgba(106,193,255,0.46))
+                       drop-shadow(0 2px 3px rgba(0,0,0,0.9)); }
+}
+@keyframes splashProgress {
+    0%   { transform: translateX(-105%); }
+    100% { transform: translateX(345%); }
+}
+
+/* ---------------------------------------------------------
+   6. Aviso de rotação (retrato)
+   --------------------------------------------------------- */
+#rotate-hint {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+    padding:
+        calc(var(--sat) + 32px)
+        calc(var(--sar) + 32px)
+        calc(var(--sab) + 32px)
+        calc(var(--sal) + 32px);
+    background: radial-gradient(120% 80% at 50% 40%, #17171a 0%, #000 75%);
+    animation: fadeIn var(--dur) var(--ease-native) both;
+}
+#rotate-hint.is-hidden { display: none !important; }
+
+@media (orientation: portrait) and (max-width: 920px) {
+    #rotate-hint { display: flex; }
+}
+
+.rotate-phone {
+    width: 84px;
+    height: 84px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 10px;
+}
+.rotate-phone-body {
+    position: relative;
+    width: 34px;
+    height: 58px;
+    border: 2.5px solid rgba(255, 255, 255, 0.78);
+    border-radius: 9px;
+    animation: rotatePhone 2.6s var(--ease-native) infinite;
+}
+.rotate-phone-body::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.rotate-title {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--c-fg);
+}
+.rotate-text {
+    max-width: 30ch;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--c-muted);
+}
+
+#rotate-dismiss {
+    margin-top: 22px;
+    padding: 11px 22px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--c-accent);
+    background: rgba(106, 193, 255, 0.12);
+    border: 0.5px solid rgba(106, 193, 255, 0.32);
+    border-radius: var(--radius-pill);
+    transition: transform var(--dur-fast) var(--ease-native),
+                background var(--dur-fast) var(--ease-native);
+}
+#rotate-dismiss:active {
+    transform: scale(0.95);
+    background: rgba(106, 193, 255, 0.22);
+}
+
+@keyframes rotatePhone {
+    0%, 18%   { transform: rotate(0deg); }
+    52%, 100% { transform: rotate(-90deg); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ---------------------------------------------------------
+   7. Toasts (feedback nativo)
+   --------------------------------------------------------- */
+#toast-host {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--sab) + 26px);
+    transform: translateX(-50%);
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: max-content;
+    max-width: 92vw;
+    pointer-events: none;
+}
+
+.toast {
+    max-width: min(86vw, 380px);
+    padding: 10px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #f5f5f5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-hairline);
+    border-radius: var(--radius-pill);
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    backdrop-filter: blur(18px) saturate(180%);
+    animation: toastIn 0.34s var(--ease-spring) both;
+}
+.toast.toast-out {
+    animation: toastOut 0.24s var(--ease-native) both;
+}
+
+@keyframes toastIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.94); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+
+/* ---------------------------------------------------------
+   8. Acessibilidade / performance
+   --------------------------------------------------------- */
+:focus { outline: none; }
+:focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
+}
+
+/* Modo standalone (instalado): sem realces de hover */
+@media (display-mode: standalone) {
+    #rotate-dismiss:hover { background: rgba(106, 193, 255, 0.12); }
+}

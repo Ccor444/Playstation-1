@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport"
+	      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+	<meta name="color-scheme" content="dark">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+	<meta name="apple-mobile-web-app-title" content="PSX">
+	<meta name="theme-color" content="#0a0a0a">
+	<meta name="msapplication-TileColor" content="#0a0a0a">
+	<meta name="format-detection" content="telephone=no">
+	<meta name="screen-orientation" content="landscape">
+	<meta name="x5-orientation" content="landscape">
+	<meta name="full-screen" content="yes">
+	<meta name="x5-fullscreen" content="true">
+	<meta name="msapplication-tap-highlight" content="no">
+
+	<title>PSX Emulator</title>
+
+	<link rel="stylesheet" type="text/css" href="index.css">
+</head>
+<body>
+
+	<div id="splash" aria-hidden="true">
+		<div class="splash-inner">
+			<div class="splash-logo">PSX</div>
+			<div class="splash-sub">EMULATOR</div>
+
+			<div class="splash-progress">
+				<div class="splash-progress-bar"></div>
+			</div>
+			<div id="splash-status" class="splash-status" role="status" aria-live="polite">Inicializando…</div>
+		</div>
+	</div>
+
+	<div id="rotate-hint" aria-hidden="true">
+		<div class="rotate-phone"><span class="rotate-phone-body"></span></div>
+		<div class="rotate-title">Gire o dispositivo</div>
+		<div class="rotate-text">O PSX foi feito para jogar na horizontal, com os controles nas laterais.</div>
+		<button id="rotate-dismiss" type="button">Continuar assim mesmo</button>
+	</div>
+
+	<div id="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+	<header>
+		<span class="nobios"></span>
+	</header>
+
+	<nav>
+		<div id="globe"></div>
+		<div id="gamepad"></div>
+		<div id="quality">Q1</div>
+	</nav>
+
+	<input type="file" id="file" multiple accept="*/*">
+
+	<canvas id="display" width="1024" height="512"></canvas>
+
+	<script type="text/javascript" src="base64.js"></script>
+	<script type="text/javascript" src="trace.js"></script>
+	<script type="text/javascript" src="utils.js"></script>
+
+	<script type="text/javascript" src="psx-core/core.js"></script>
+	<script type="text/javascript" src="psx-core/config.js"></script>
+
+	<script type="text/javascript" src="psx-renderers/webGlHQ.js"></script>
+
+	<script type="text/javascript" src="psx-core/memory.js"></script>
+	<script type="text/javascript" src="psx-core/enge.js"></script>
+	<script type="text/javascript" src="psx-core/cdrom.js"></script>
+	<script type="text/javascript" src="psx-core/recompiler.js"></script>
+	<script type="text/javascript" src="psx-core/directMemoryAccess.js"></script>
+	<script type="text/javascript" src="psx-core/geometryTransformEngine.js"></script>
+	<script type="text/javascript" src="psx-core/graphicsProcessingUnit.js"></script>
+	<script type="text/javascript" src="psx-core/macroBlockDecoder.js"></script>
+	<script type="text/javascript" src="psx-core/serialPorts.js"></script>
+	<script type="text/javascript" src="psx-core/soundProcessingUnit.js"></script>
+	<script type="text/javascript" src="psx-core/rootCounters.js"></script>
+	<script type="text/javascript" src="psx-core/gamepad.js"></script>
+
+	<script type="text/javascript" src="virtualPad.js"></script>
+	<script type="text/javascript" src="menu.js"></script>
+	<script type="text/javascript" src="gameLibrary.js"></script>
+	<script type="text/javascript" src="saveState.js"></script>
+	<script type="text/javascript" src="index.js"></script>
+
+	<script>
+	(function () {
+		'use strict';
+
+		var BIOS_URL = 'bios.bin';
+
+		/* =====================================================
+		   Ícones + manifest injetados em runtime
+		   ===================================================== */
+		function makeIcon(size) {
+			var svg =
+				'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
+				'<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">' +
+				'<stop offset="0" stop-color="#3a3a3a"/><stop offset="1" stop-color="#101010"/>' +
+				'</linearGradient></defs>' +
+				'<rect width="512" height="512" rx="96" fill="url(#g)"/>' +
+				'<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"' +
+				' font-family="Arial,Helvetica,sans-serif" font-weight="900"' +
+				' font-size="200" fill="#e8e8e8" letter-spacing="4">PSX</text>' +
+				'<circle cx="256" cy="410" r="8" fill="#6ac1ff"/>' +
+				'</svg>';
+			return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+		}
+		var icon192 = makeIcon(192);
+		var icon512 = makeIcon(512);
+
+		var manifest = {
+			"name": "PSX Emulator",
+			"short_name": "PSX",
+			"description": "Emulador PlayStation 1",
+			"start_url": ".",
+			"scope": "./",
+			"display": "fullscreen",
+			"display_override": ["fullscreen", "standalone", "minimal-ui"],
+			"orientation": "landscape",
+			"background_color": "#0a0a0a",
+			"theme_color": "#0a0a0a",
+			"lang": "pt-BR",
+			"prefer_related_applications": false,
+			"icons": [
+				{ "src": icon192, "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+				{ "src": icon512, "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" },
+				{ "src": icon512, "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+			]
+		};
+		var manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+		var linkM = document.createElement('link');
+		linkM.rel = 'manifest';
+		linkM.href = manifestUrl;
+		document.head.appendChild(linkM);
+
+		var linkIco = document.createElement('link');
+		linkIco.rel = 'icon'; linkIco.type = 'image/svg+xml'; linkIco.href = icon192;
+		document.head.appendChild(linkIco);
+		var linkApple = document.createElement('link');
+		linkApple.rel = 'apple-touch-icon'; linkApple.href = icon192;
+		document.head.appendChild(linkApple);
+
+		/* =====================================================
+		   Service worker (shell offline)
+		   ===================================================== */
+		var swSrc =
+			"'use strict';" +
+			"self.addEventListener('install',function(e){self.skipWaiting();});" +
+			"self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim());});" +
+			"self.addEventListener('fetch',function(e){});";
+
+		function registerSW() {
+			if (!('serviceWorker' in navigator)) return;
+			if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+			try {
+				var swUrl = URL.createObjectURL(new Blob([swSrc], { type: 'application/javascript' }));
+				navigator.serviceWorker.register(swUrl).catch(function () {});
+			} catch (e) {}
+		}
+
+		/* =====================================================
+		   Helpers "nativos"
+		   ===================================================== */
+
+		/* Toast — feedback rápido estilo Android/iOS */
+		var toastHost = null;
+		function toast(msg, ms) {
+			if (!toastHost) toastHost = document.getElementById('toast-host');
+			if (!toastHost || !msg) return;
+			var el = document.createElement('div');
+			el.className = 'toast';
+			el.textContent = msg;
+			toastHost.appendChild(el);
+			setTimeout(function () {
+				el.classList.add('toast-out');
+				setTimeout(function () {
+					if (el.parentNode) el.parentNode.removeChild(el);
+				}, 260);
+			}, ms || 1800);
+		}
+		window.psxToast = toast;
+
+		/* Vibração (Android / browsers compatíveis; no-op no iOS) */
+		function haptic(ms) {
+			if (navigator.vibrate) {
+				try { navigator.vibrate(ms || 8); } catch (e) {}
+			}
+		}
+		window.psxHaptic = haptic;
+
+		/* Cursor some quando ocioso */
+		var idleTimer = null;
+		function armIdleCursor() {
+			document.body.classList.remove('cursor-idle');
+			clearTimeout(idleTimer);
+			idleTimer = setTimeout(function () {
+				document.body.classList.add('cursor-idle');
+			}, 2500);
+		}
+		['pointermove', 'pointerdown', 'keydown'].forEach(function (ev) {
+			window.addEventListener(ev, armIdleCursor, { passive: true });
+		});
+		armIdleCursor();
+
+		/* Aviso de rotação (dispensável na sessão) */
+		var rotateHint = document.getElementById('rotate-hint');
+		var rotateBtn = document.getElementById('rotate-dismiss');
+		try {
+			if (sessionStorage.getItem('psx.rotateDismissed') === '1' && rotateHint) {
+				rotateHint.classList.add('is-hidden');
+			}
+		} catch (e) {}
+		if (rotateBtn) {
+			rotateBtn.addEventListener('click', function () {
+				if (rotateHint) rotateHint.classList.add('is-hidden');
+				try { sessionStorage.setItem('psx.rotateDismissed', '1'); } catch (e) {}
+				haptic(10);
+				toast('Modo retrato ativo');
+			});
+		}
+
+		/* =====================================================
+		   Wake Lock + fullscreen + bloqueio de gestos
+		   ===================================================== */
+		var wakeLock = null;
+		function requestWakeLock() {
+			if (!('wakeLock' in navigator)) return;
+			navigator.wakeLock.request('screen').then(function (wl) {
+				wakeLock = wl;
+				wl.addEventListener('release', function () { wakeLock = null; });
+			}).catch(function () {});
+		}
+		function reacquireWakeLock() {
+			if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+		}
+		document.addEventListener('visibilitychange', reacquireWakeLock);
+
+		document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, false);
+		document.addEventListener('selectstart', function (e) {
+			if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+			e.preventDefault();
+		}, false);
+		document.addEventListener('dblclick', function (e) { e.preventDefault(); }, false);
+		document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, false);
+		document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, false);
+		document.addEventListener('gestureend', function (e) { e.preventDefault(); }, false);
+
+		var lastTouch = 0;
+		document.addEventListener('touchend', function (e) {
+			var now = Date.now();
+			if (now - lastTouch <= 300) e.preventDefault();
+			lastTouch = now;
+		}, { passive: false });
+		document.addEventListener('touchmove', function (e) {
+			if (e.touches.length > 1) e.preventDefault();
+		}, { passive: false });
+
+		function goImmersive() {
+			var el = document.documentElement;
+			var p = el.requestFullscreen
+				? el.requestFullscreen({ navigationUI: 'hide' })
+				: (el.webkitRequestFullscreen ? Promise.resolve(el.webkitRequestFullscreen()) : null);
+			if (p && p.then) {
+				p.then(function () {
+					if (screen.orientation && screen.orientation.lock) {
+						screen.orientation.lock('landscape').catch(function () {});
+					}
+				}).catch(function () {});
+			} else if (screen.orientation && screen.orientation.lock) {
+				screen.orientation.lock('landscape').catch(function () {});
+			}
+		}
+		function attachImmersiveOnce() {
+			var fn = function () {
+				goImmersive();
+				if (window.spu && typeof window.spu.resume === 'function') {
+					try { window.spu.resume(); } catch (_) {}
+				}
+				window.removeEventListener('pointerdown', fn);
+				window.removeEventListener('touchstart', fn);
+			};
+			window.addEventListener('pointerdown', fn, { once: true });
+			window.addEventListener('touchstart', fn, { once: true });
+		}
+
+		/* =====================================================
+		   Splash / status
+		   ===================================================== */
+		function setStatus(text) {
+			var el = document.getElementById('splash-status');
+			if (el) el.textContent = text;
+		}
+		function hideSplash(delay) {
+			setTimeout(function () {
+				var s = document.getElementById('splash');
+				if (!s) return;
+				s.classList.add('splash-hide');
+				setTimeout(function () {
+					if (s.parentNode) s.parentNode.removeChild(s);
+				}, 520);
+			}, delay || 0);
+		}
+
+		function biosAlreadyLoaded() {
+			var header = document.querySelector('header > span');
+			return header && !header.classList.contains('nobios');
+		}
+
+		function tryLoadBios() {
+			if (!window.loadBiosFromUrl) {
+				setStatus('Pronto');
+				return Promise.reject(new Error('loadBiosFromUrl indisponível'));
+			}
+			setStatus('Carregando sistema…');
+			return window.loadBiosFromUrl(BIOS_URL);
+		}
+
+		/* =====================================================
+		   Boot
+		   ===================================================== */
+		window.addEventListener('load', function () {
+
+			try {
+				window.init();
+			} catch (e) {
+				console.error('[init]', e);
+			}
+
+			window.addEventListener('keydown', function (e) {
+				if (e.target && e.target.tagName === 'INPUT') return;
+				if (e.key === 'm' || e.key === 'M') { if (window.menu) window.menu.toggle(); }
+				if (e.key === 'v' || e.key === 'V') { if (window.virtualPad) window.virtualPad.toggle(); }
+			});
+
+			registerSW();
+			attachImmersiveOnce();
+			requestWakeLock();
+
+			if (biosAlreadyLoaded()) {
+				setStatus('BIOS OK');
+				hideSplash(320);
+				return;
+			}
+
+			tryLoadBios()
+				.then(function () {
+					setStatus('BIOS OK');
+					hideSplash(380);
+				})
+				.catch(function (err) {
+					console.warn('[BIOS] Auto-load falhou:', err);
+					setStatus('Toque em ☰ → Carregar Jogo / BIOS');
+					hideSplash(1700);
+					toast('BIOS não encontrada — carregue manualmente');
+				});
+		});
+
+	})();
+	</script>
+
+</body>
+</html>
